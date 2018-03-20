@@ -24,6 +24,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import com.dashradar.dashd2dashradar.service.BlockImportService;
+import com.dashradar.dashradarbackend.repository.BlockChainTotalsRepository;
 
 @Component
 @Configuration
@@ -48,6 +49,9 @@ public class Main {
 
     @Autowired
     private SessionFactory sessionFactory;
+    
+    @Autowired
+    private BlockChainTotalsRepository blockChainTotalsRepository;
 
     @Bean
     public Client client(@Value("${rpcurl}") String rpcurl, @Value("${rpcuser}") String rpcuser, @Value("${rpcpassword}") String rpcpassword) {
@@ -100,38 +104,36 @@ public class Main {
             blockImportService2.fillPstypes();
             System.out.println("Creationg previous connections");
             blockImportService2.createPreviousPSConnections();
-            //System.out.println("Calculating transaction fees");
-            //blockImportService2.calculateTransactionFees();//Not required anymore
             System.out.println("Creating BlockChainTotals");
-            blockImportService2.create_BlockChainTotals();
+            blockChainTotalsRepository.create_block_chain_totals();
             System.out.println("\ttx_count");
-            blockImportService2.tx_count();
+            blockChainTotalsRepository.compute_total_tx_count();
             System.out.println("\tinput_count");
-            blockImportService2.input_count();
+            blockChainTotalsRepository.compute_input_counts();
             System.out.println("\toutput_count");
-            blockImportService2.output_count();
+            blockChainTotalsRepository.compute_output_counts();
             System.out.println("\tmixing_100_0_count");
-            blockImportService2.mixing100_0_count();
+            blockChainTotalsRepository.compute_mixing_100_0_counts();
             System.out.println("\tmixing_10_0_count");
-            blockImportService2.mixing_10_0_count();
+            blockChainTotalsRepository.compute_mixing_10_0_counts();
             System.out.println("\tmixing_1_0_count");
-            blockImportService2.mixing_1_0_count();
+            blockChainTotalsRepository.compute_mixing_1_0_counts();
             System.out.println("\tmixing_0_1_count");
-            blockImportService2.mixing_0_1_count();
+            blockChainTotalsRepository.compute_mixing_0_1_counts();
             System.out.println("\tmixing_0_01_count");
-            blockImportService2.mixing_0_01_count();
+            blockChainTotalsRepository.compute_mixing_0_01_counts();
             System.out.println("\tprivatesend_tx_count");
-            blockImportService2.privatesend_tx_count();
+            blockChainTotalsRepository.compute_privatesend_tx_count();
             System.out.println("\ttotal_block_rewards");
-            blockImportService2.total_block_rewards();
+            blockChainTotalsRepository.compute_total_block_rewards();
             System.out.println("\ttotal_block_size");
-            blockImportService2.total_block_size();
+            blockChainTotalsRepository.compute_total_block_size();
             System.out.println("\ttotal_output_volume");
-            blockImportService2.total_output_volume();
+            blockChainTotalsRepository.compute_total_output_volume();
             System.out.println("\ttotal_transaction_size");
-            blockImportService2.total_transaction_size();
+            blockChainTotalsRepository.compute_total_transaction_size();
             System.out.println("\ttotal_fees");
-            blockImportService2.total_fees();
+            blockChainTotalsRepository.compute_total_fees();
             System.out.println("Creating Days");
             blockImportService2.last_block_of_day();
             System.out.println("Done");
