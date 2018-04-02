@@ -90,6 +90,60 @@ public class BlockImportServiceImpl implements BlockImportService {
                     + "	(tx1)-[:PREVIOUS_ROUND {connections:rel_count}]->(tx2);";
             session.query(previous_ps_connections, params);
         }
+        createMixingSourceConnections();
+        createFirstRoundConnections();
+    }
+    
+    public void createMixingSourceConnections() {
+        ArrayList<Integer> pstypes = new ArrayList<>();
+        pstypes.add(Transaction.PRIVATE_SEND_MIXING_0_01);
+        pstypes.add(Transaction.PRIVATE_SEND_MIXING_0_1);
+        pstypes.add(Transaction.PRIVATE_SEND_MIXING_1_0);
+        pstypes.add(Transaction.PRIVATE_SEND_MIXING_10_0);
+        pstypes.add(Transaction.PRIVATE_SEND_MIXING_100_0);
+        for (int pstype : pstypes) {
+            Session session = sessionFactory.openSession();
+            Map<String, Object> params = new HashMap<>();
+            params.put("pstype", pstype);
+            String query
+            = "MATCH \n"
+            + "	(tx1:Transaction {pstype:$pstype})<-[:INPUT]-(i:TransactionInput)-[:SPENT_IN]-(o:TransactionOutput)-[:OUTPUT]-(tx2:Transaction {pstype:"+Transaction.PRIVATE_SEND_CREATE_DENOMINATIONS+"}) \n"
+            + "WITH \n"
+            + "	tx1, \n"
+            + "	tx2, \n"
+            + "	count(o) as rel_count \n"
+            + "WHERE \n"
+            + "	NOT (tx1)-[:MIXING_SOURCE]->(tx2) \n"
+            + "CREATE \n"
+            + "	(tx1)-[:MIXING_SOURCE {connections:rel_count}]->(tx2);";
+            session.query(query, params);
+        }
+    }
+    
+    public void createFirstRoundConnections() {
+        ArrayList<Integer> pstypes = new ArrayList<>();
+        pstypes.add(Transaction.PRIVATE_SEND_MIXING_0_01);
+        pstypes.add(Transaction.PRIVATE_SEND_MIXING_0_1);
+        pstypes.add(Transaction.PRIVATE_SEND_MIXING_1_0);
+        pstypes.add(Transaction.PRIVATE_SEND_MIXING_10_0);
+        pstypes.add(Transaction.PRIVATE_SEND_MIXING_100_0);
+        for (int pstype : pstypes) {
+            Session session = sessionFactory.openSession();
+            Map<String, Object> params = new HashMap<>();
+            params.put("pstype", pstype);
+            String query
+            = "MATCH \n"
+            + "	(tx1:Transaction {pstype:"+Transaction.PRIVATE_SEND+"})<-[:INPUT]-(i:TransactionInput)-[:SPENT_IN]-(o:TransactionOutput)-[:OUTPUT]-(tx2:Transaction {pstype:$pstype}) \n"
+            + "WITH \n"
+            + "	tx1, \n"
+            + "	tx2, \n"
+            + "	count(o) as rel_count \n"
+            + "WHERE \n"
+            + "	NOT (tx1)-[:FIRST_ROUND]->(tx2) \n"
+            + "CREATE \n"
+            + "	(tx1)-[:FIRST_ROUND {connections:rel_count}]->(tx2);";
+            session.query(query, params);
+        }
     }
 
     @Override
