@@ -67,19 +67,14 @@ public class Main {
 
     @Scheduled(fixedDelay = 1000 * 60 * 1)
     public void processBlockChain() throws IOException {
+        
+        int psConnectionsEvery = 50;
         try {
-            //registerUTXCache();
-            //blockService2.createBlock();
             Block lastSavedBlock = blockRepository.findLastBlock();
-            /*if (lastSavedBlock == null) {
-            BlockDTO block = client.getBlockByHeight(0);
-            blockImportService2.processBlock(block);
-            lastSavedBlock = blockRepository.findLastBlock();
-            }*/
 
-            //System.out.println("lastSavedBlock "+lastSavedBlock.getHeight());
             long startHeight = lastSavedBlock == null ? 0 : lastSavedBlock.getHeight() + 1;
             String previousBlockHash = lastSavedBlock == null ? null : lastSavedBlock.getHash();
+            long lastHeight = startHeight-1;
             try {
                 for (long height = startHeight; height < 900000; height++) {
                     BlockDTO block = client.getBlockByHeight(height);
@@ -94,7 +89,12 @@ public class Main {
 
                     System.out.println("height" + height);
                     blockImportService2.processBlock(block);
+                    if (height % psConnectionsEvery == 0) {
+                        blockImportService2.fillPstypes();
+                        blockImportService2.createPreviousPSConnections(height-psConnectionsEvery);
+                    }    
                     previousBlockHash = block.getHash();
+                    lastHeight = height;
                 }
             } catch (Exception ex) {
                 System.out.println(ex);
@@ -103,7 +103,7 @@ public class Main {
             System.out.println("Filling privatesend types");
             blockImportService2.fillPstypes();
             System.out.println("Creationg previous connections");
-            blockImportService2.createPreviousPSConnections();
+            blockImportService2.createPreviousPSConnections(lastHeight);
             System.out.println("Creating BlockChainTotals");
             blockChainTotalsRepository.create_block_chain_totals();
             System.out.println("\ttx_count");

@@ -9,6 +9,7 @@ import com.dashradar.dashradarbackend.repository.TransactionRepository;
 import com.dashradar.dashradarbackend.util.TransactionUtil;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,6 +37,10 @@ public class BlockImportServiceImpl implements BlockImportService {
     
     @Autowired
     private BlockChainTotalsRepository blockChainTotalsRepository;
+    
+    
+    private List<Integer> pstypes = Arrays.asList(Transaction.PRIVATE_SEND_MIXING_0_01, Transaction.PRIVATE_SEND_MIXING_0_1, Transaction.PRIVATE_SEND_MIXING_1_0, Transaction.PRIVATE_SEND_MIXING_10_0, Transaction.PRIVATE_SEND_MIXING_100_0);
+    
 
     @Override
     public void calculateTransactionFees() {
@@ -67,19 +72,13 @@ public class BlockImportServiceImpl implements BlockImportService {
 
     @Override
     public void createPreviousPSConnections() {
-        ArrayList<Integer> pstypes = new ArrayList<>();
-        pstypes.add(Transaction.PRIVATE_SEND_MIXING_0_01);
-        pstypes.add(Transaction.PRIVATE_SEND_MIXING_0_1);
-        pstypes.add(Transaction.PRIVATE_SEND_MIXING_1_0);
-        pstypes.add(Transaction.PRIVATE_SEND_MIXING_10_0);
-        pstypes.add(Transaction.PRIVATE_SEND_MIXING_100_0);
         for (int pstype : pstypes) {
             Session session = sessionFactory.openSession();
             Map<String, Object> params = new HashMap<>();
             params.put("pstype", pstype);
             String previous_ps_connections
                     = "MATCH \n"
-                    + "	(tx1:Transaction {pstype:$pstype})<-[:INPUT]-(i:TransactionInput)-[:SPENT_IN]-(o:TransactionOutput)-[:OUTPUT]-(tx2:Transaction {pstype:$pstype}) \n"
+                    + "	(tx1:Transaction {pstype:$pstype})<-[:INPUT]-(i:TransactionInput)<-[:SPENT_IN]-(o:TransactionOutput)<-[:OUTPUT]-(tx2:Transaction {pstype:$pstype}) \n"
                     + "WITH \n"
                     + "	tx1, \n"
                     + "	tx2, \n"
@@ -94,13 +93,32 @@ public class BlockImportServiceImpl implements BlockImportService {
         createFirstRoundConnections();
     }
     
+    @Override
+    public void createPreviousPSConnections(long afterBlock) {
+        for (int pstype : pstypes) {
+            Session session = sessionFactory.openSession();
+            Map<String, Object> params = new HashMap<>();
+            params.put("pstype", pstype);
+            params.put("afterBlock", afterBlock);
+            String previous_ps_connections
+                    = "MATCH \n"
+                    + "	(b:Block)<-[:INCLUDED_IN]-(tx1:Transaction {pstype:$pstype})<-[:INPUT]-(i:TransactionInput)<-[:SPENT_IN]-(o:TransactionOutput)<-[:OUTPUT]-(tx2:Transaction {pstype:$pstype}) \n"
+                    + "WHERE b.height >= $afterBlock \n"
+                    + "WITH \n"
+                    + "	tx1, \n"
+                    + "	tx2, \n"
+                    + "	count(o) as rel_count \n"
+                    + "WHERE \n"
+                    + "	NOT (tx1)-[:PREVIOUS_ROUND]->(tx2) \n"
+                    + "CREATE \n"
+                    + "	(tx1)-[:PREVIOUS_ROUND {connections:rel_count}]->(tx2);";
+            session.query(previous_ps_connections, params);
+        }
+        createMixingSourceConnections(afterBlock);
+        createFirstRoundConnections(afterBlock);
+    }
+    
     public void createMixingSourceConnections() {
-        ArrayList<Integer> pstypes = new ArrayList<>();
-        pstypes.add(Transaction.PRIVATE_SEND_MIXING_0_01);
-        pstypes.add(Transaction.PRIVATE_SEND_MIXING_0_1);
-        pstypes.add(Transaction.PRIVATE_SEND_MIXING_1_0);
-        pstypes.add(Transaction.PRIVATE_SEND_MIXING_10_0);
-        pstypes.add(Transaction.PRIVATE_SEND_MIXING_100_0);
         for (int pstype : pstypes) {
             Session session = sessionFactory.openSession();
             Map<String, Object> params = new HashMap<>();
@@ -120,13 +138,29 @@ public class BlockImportServiceImpl implements BlockImportService {
         }
     }
     
+    public void createMixingSourceConnections(long afterBlock) {
+        for (int pstype : pstypes) {
+            Session session = sessionFactory.openSession();
+            Map<String, Object> params = new HashMap<>();
+            params.put("pstype", pstype);
+            params.put("afterBlock", afterBlock);
+            String query
+            = "MATCH \n"
+            + "	(b:Block)<-[:INCLUDED_IN]-(tx1:Transaction {pstype:$pstype})<-[:INPUT]-(i:TransactionInput)-[:SPENT_IN]-(o:TransactionOutput)-[:OUTPUT]-(tx2:Transaction {pstype:"+Transaction.PRIVATE_SEND_CREATE_DENOMINATIONS+"}) \n"
+            + "WHERE b.height >= $afterBlock \n"
+            + "WITH \n"
+            + "	tx1, \n"
+            + "	tx2, \n"
+            + "	count(o) as rel_count \n"
+            + "WHERE \n"
+            + "	NOT (tx1)-[:MIXING_SOURCE]->(tx2) \n"
+            + "CREATE \n"
+            + "	(tx1)-[:MIXING_SOURCE {connections:rel_count}]->(tx2);";
+            session.query(query, params);
+        }
+    }
+    
     public void createFirstRoundConnections() {
-        ArrayList<Integer> pstypes = new ArrayList<>();
-        pstypes.add(Transaction.PRIVATE_SEND_MIXING_0_01);
-        pstypes.add(Transaction.PRIVATE_SEND_MIXING_0_1);
-        pstypes.add(Transaction.PRIVATE_SEND_MIXING_1_0);
-        pstypes.add(Transaction.PRIVATE_SEND_MIXING_10_0);
-        pstypes.add(Transaction.PRIVATE_SEND_MIXING_100_0);
         for (int pstype : pstypes) {
             Session session = sessionFactory.openSession();
             Map<String, Object> params = new HashMap<>();
@@ -145,20 +179,42 @@ public class BlockImportServiceImpl implements BlockImportService {
             session.query(query, params);
         }
     }
+    
+    public void createFirstRoundConnections(long afterBlock) {
+        for (int pstype : pstypes) {
+            Session session = sessionFactory.openSession();
+            Map<String, Object> params = new HashMap<>();
+            params.put("pstype", pstype);
+            params.put("afterBlock", afterBlock);
+            String query
+            = "MATCH \n"
+            + "	(b:Block)<-[:INCLUDED_IN]-(tx1:Transaction {pstype:"+Transaction.PRIVATE_SEND+"})<-[:INPUT]-(i:TransactionInput)-[:SPENT_IN]-(o:TransactionOutput)-[:OUTPUT]-(tx2:Transaction {pstype:$pstype}) \n"
+            + "WHERE b.height >= $afterBlock \n"
+            + "WITH \n"
+            + "	tx1, \n"
+            + "	tx2, \n"
+            + "	count(o) as rel_count \n"
+            + "WHERE \n"
+            + "	NOT (tx1)-[:FIRST_ROUND]->(tx2) \n"
+            + "CREATE \n"
+            + "	(tx1)-[:FIRST_ROUND {connections:rel_count}]->(tx2);";
+            session.query(query, params);
+        }
+    }
 
     @Override
     public void fillPstypes() {
         long start = System.currentTimeMillis();
         int count = 0;
-        System.out.println("Filling pstypes for potentially mixing transactions");
+        //System.out.println("Filling pstypes for potentially mixing transactions");
         while (fillPageOfMixingPsTypes()) {
             count = count + 70;
-            System.out.println(1000.0 * count / (System.currentTimeMillis() - start) + " transactions per second");
+            //System.out.println(1000.0 * count / (System.currentTimeMillis() - start) + " transactions per second");
         }
-        System.out.println("Filling pstypes for potentially privatesend transactions");
+        //System.out.println("Filling pstypes for potentially privatesend transactions");
         while (fillPageOfPrivateSendPsTypes()) {
             count = count + 70;
-            System.out.println(1000.0 * count / (System.currentTimeMillis() - start) + " transactions per second");
+            //System.out.println(1000.0 * count / (System.currentTimeMillis() - start) + " transactions per second");
         }
     }
 
@@ -363,7 +419,7 @@ public class BlockImportServiceImpl implements BlockImportService {
     private boolean fillPageOfMixingPsTypes() {
         Pageable pageable = new PageRequest(0, 70);
         List<Transaction> txList = transcationRepository.findByPstype(Transaction.PRIVATE_SEND_POTENTIALLY_MIXING, 2, pageable);
-        System.out.println(txList.size());
+        //System.out.println(txList.size());
         for (Transaction tx : txList) {
             tx.setPstype(TransactionUtil.getPsType(tx));
         }
@@ -375,7 +431,7 @@ public class BlockImportServiceImpl implements BlockImportService {
     private boolean fillPageOfPrivateSendPsTypes() {
         Pageable pageable = new PageRequest(0, 70);
         List<Transaction> txList = transcationRepository.findByPstype(Transaction.PRIVATE_SEND_POTENTIALLY_PRIVATE_SEND, 2, pageable);
-        System.out.println(txList.size());
+        //System.out.println(txList.size());
         for (Transaction tx : txList) {
             tx.setPstype(TransactionUtil.getPsType(tx));
         }

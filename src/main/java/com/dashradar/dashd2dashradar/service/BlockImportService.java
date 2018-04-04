@@ -10,6 +10,8 @@ public interface BlockImportService {
     public void fillPstypes();
 
     void createPreviousPSConnections();
+    
+    void createPreviousPSConnections(long afterBlock);
 
     void calculateTransactionFees();
 
