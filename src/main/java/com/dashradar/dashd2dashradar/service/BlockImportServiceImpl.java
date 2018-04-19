@@ -231,11 +231,24 @@ public class BlockImportServiceImpl implements BlockImportService {
                 + "MERGE (d:Day {day:day})-[:LAST_BLOCK]->(lastBlock)";
         session.query(query, params);
 
+        
+        String query2
+                = "MATCH (b:PrivateSendTotals)\n"
+                + "WITH b.time/86400 as day, max(b.height) as last_height\n"
+                + "MATCH (lastBlock:PrivateSendTotals {height:last_height})\n"
+                + "WITH lastBlock, day\n"
+                + "MERGE (d:Day {day:day})\n"
+                + "WITH lastBlock, day, d\n"
+                + "MERGE (d)-[:LAST_BLOCK]->(lastBlock)";
+        session.query(query2, params);
+
         String deleteQuery = "MATCH (n:Day) WITH max(n.day) as last_day MATCH (lastDay:Day {day:last_day}) DETACH DELETE lastDay;";
         session.query(deleteQuery, params);
+        
         neo4jtransaction.commit();
         neo4jtransaction.close();
     }
+    
 
     @Override
     public void processBlock(BlockDTO block) throws IOException {

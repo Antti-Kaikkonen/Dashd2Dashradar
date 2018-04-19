@@ -24,7 +24,9 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import com.dashradar.dashd2dashradar.service.BlockImportService;
+import com.dashradar.dashradarbackend.domain.PrivateSendTotals;
 import com.dashradar.dashradarbackend.repository.BlockChainTotalsRepository;
+import com.dashradar.dashradarbackend.repository.PrivateSendTotalsRepository;
 
 @Component
 @Configuration
@@ -52,6 +54,9 @@ public class Main {
     
     @Autowired
     private BlockChainTotalsRepository blockChainTotalsRepository;
+    
+    @Autowired
+    private PrivateSendTotalsRepository privateSendTotalsRepository;
 
     @Bean
     public Client client(@Value("${rpcurl}") String rpcurl, @Value("${rpcuser}") String rpcuser, @Value("${rpcpassword}") String rpcpassword) {
@@ -106,6 +111,7 @@ public class Main {
             blockImportService2.createPreviousPSConnections(lastHeight);
             System.out.println("Creating BlockChainTotals");
             blockChainTotalsRepository.create_block_chain_totals();
+            privateSendTotalsRepository.create_privatesend_totals();
             System.out.println("\ttx_count");
             blockChainTotalsRepository.compute_total_tx_count();
             System.out.println("\tinput_count");
@@ -114,16 +120,36 @@ public class Main {
             blockChainTotalsRepository.compute_output_counts();
             System.out.println("\tmixing_100_0_count");
             blockChainTotalsRepository.compute_mixing_100_0_counts();
+            privateSendTotalsRepository.compute_mixing_100_0_counts();
             System.out.println("\tmixing_10_0_count");
             blockChainTotalsRepository.compute_mixing_10_0_counts();
+            privateSendTotalsRepository.compute_mixing_10_0_counts();
             System.out.println("\tmixing_1_0_count");
             blockChainTotalsRepository.compute_mixing_1_0_counts();
+            privateSendTotalsRepository.compute_mixing_1_0_counts();
             System.out.println("\tmixing_0_1_count");
             blockChainTotalsRepository.compute_mixing_0_1_counts();
+            privateSendTotalsRepository.compute_mixing_0_1_counts();
             System.out.println("\tmixing_0_01_count");
             blockChainTotalsRepository.compute_mixing_0_01_counts();
+            privateSendTotalsRepository.compute_mixing_0_01_counts();
             System.out.println("\tprivatesend_tx_count");
             blockChainTotalsRepository.compute_privatesend_tx_count();
+            privateSendTotalsRepository.compute_privatesend_tx_count();
+            System.out.println("\tprivatesend_mixing_output_counts");
+            privateSendTotalsRepository.compute_privatesend_mixing_0_01_output_count();
+            privateSendTotalsRepository.compute_privatesend_mixing_0_1_output_count();
+            privateSendTotalsRepository.compute_privatesend_mixing_1_0_output_count();
+            privateSendTotalsRepository.compute_privatesend_mixing_10_0_output_count();
+            privateSendTotalsRepository.compute_privatesend_mixing_100_0_output_count();
+            System.out.println("\tprivatesend_mixing_spent_output_counts");
+            privateSendTotalsRepository.compute_privatesend_mixing_0_01_spent_output_count();
+            privateSendTotalsRepository.compute_privatesend_mixing_0_1_spent_output_count();
+            privateSendTotalsRepository.compute_privatesend_mixing_1_0_spent_output_count();
+            privateSendTotalsRepository.compute_privatesend_mixing_10_0_spent_output_count();
+            privateSendTotalsRepository.compute_privatesend_mixing_100_0_spent_output_count();
+            System.out.println("\tprivate_tx_input_count");
+            privateSendTotalsRepository.compute_privatesend_tx_input_count();
             System.out.println("\ttotal_block_rewards");
             blockChainTotalsRepository.compute_total_block_rewards();
             System.out.println("\ttotal_block_size");
