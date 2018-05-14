@@ -24,9 +24,9 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import com.dashradar.dashd2dashradar.service.BlockImportService;
-import com.dashradar.dashradarbackend.domain.PrivateSendTotals;
 import com.dashradar.dashradarbackend.repository.BlockChainTotalsRepository;
 import com.dashradar.dashradarbackend.repository.PrivateSendTotalsRepository;
+import com.dashradar.dashradarbackend.service.MultiInputHeuristicClusterService;
 
 @Component
 @Configuration
@@ -57,6 +57,9 @@ public class Main {
     
     @Autowired
     private PrivateSendTotalsRepository privateSendTotalsRepository;
+    
+    @Autowired
+    private MultiInputHeuristicClusterService multiInputHeuristicClusterService;
 
     @Bean
     public Client client(@Value("${rpcurl}") String rpcurl, @Value("${rpcuser}") String rpcuser, @Value("${rpcpassword}") String rpcpassword) {
@@ -76,8 +79,15 @@ public class Main {
         int psConnectionsEvery = 50;
         try {
             Block lastSavedBlock = blockRepository.findLastBlock();
-
+            
             long startHeight = lastSavedBlock == null ? 0 : lastSavedBlock.getHeight() + 1;
+            
+            for (long clusterizeHeight = Math.max(1, startHeight - 1 - psConnectionsEvery); clusterizeHeight <= startHeight; clusterizeHeight++) {
+                multiInputHeuristicClusterService.clusteerizeBlock(clusterizeHeight);
+            }
+            blockImportService2.fillPstypes();
+            blockImportService2.createPreviousPSConnections(startHeight-1-psConnectionsEvery);
+            
             String previousBlockHash = lastSavedBlock == null ? null : lastSavedBlock.getHash();
             long lastHeight = startHeight-1;
             try {
@@ -97,6 +107,10 @@ public class Main {
                     if (height % psConnectionsEvery == 0) {
                         blockImportService2.fillPstypes();
                         blockImportService2.createPreviousPSConnections(height-psConnectionsEvery);
+                        for (long clusterizeHeight = Math.max(1, height - psConnectionsEvery); clusterizeHeight <= height; clusterizeHeight++) {
+                            multiInputHeuristicClusterService.clusteerizeBlock(clusterizeHeight);
+                            
+                        }
                     }    
                     previousBlockHash = block.getHash();
                     lastHeight = height;
@@ -119,22 +133,22 @@ public class Main {
             System.out.println("\toutput_count");
             blockChainTotalsRepository.compute_output_counts();
             System.out.println("\tmixing_100_0_count");
-            blockChainTotalsRepository.compute_mixing_100_0_counts();
+//            blockChainTotalsRepository.compute_mixing_100_0_counts();
             privateSendTotalsRepository.compute_mixing_100_0_counts();
             System.out.println("\tmixing_10_0_count");
-            blockChainTotalsRepository.compute_mixing_10_0_counts();
+//            blockChainTotalsRepository.compute_mixing_10_0_counts();
             privateSendTotalsRepository.compute_mixing_10_0_counts();
             System.out.println("\tmixing_1_0_count");
-            blockChainTotalsRepository.compute_mixing_1_0_counts();
+//            blockChainTotalsRepository.compute_mixing_1_0_counts();
             privateSendTotalsRepository.compute_mixing_1_0_counts();
             System.out.println("\tmixing_0_1_count");
-            blockChainTotalsRepository.compute_mixing_0_1_counts();
+//            blockChainTotalsRepository.compute_mixing_0_1_counts();
             privateSendTotalsRepository.compute_mixing_0_1_counts();
             System.out.println("\tmixing_0_01_count");
-            blockChainTotalsRepository.compute_mixing_0_01_counts();
+//            blockChainTotalsRepository.compute_mixing_0_01_counts();
             privateSendTotalsRepository.compute_mixing_0_01_counts();
             System.out.println("\tprivatesend_tx_count");
-            blockChainTotalsRepository.compute_privatesend_tx_count();
+//            blockChainTotalsRepository.compute_privatesend_tx_count();
             privateSendTotalsRepository.compute_privatesend_tx_count();
             System.out.println("\tprivatesend_mixing_output_counts");
             privateSendTotalsRepository.compute_privatesend_mixing_0_01_output_count();
