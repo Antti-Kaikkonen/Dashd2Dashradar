@@ -26,6 +26,7 @@ import org.springframework.stereotype.Component;
 import com.dashradar.dashd2dashradar.service.BlockImportService;
 import com.dashradar.dashradarbackend.repository.BlockChainTotalsRepository;
 import com.dashradar.dashradarbackend.repository.PrivateSendTotalsRepository;
+import com.dashradar.dashradarbackend.service.BalanceEventService;
 import com.dashradar.dashradarbackend.service.MultiInputHeuristicClusterService;
 
 @Component
@@ -60,6 +61,9 @@ public class Main {
     
     @Autowired
     private MultiInputHeuristicClusterService multiInputHeuristicClusterService;
+    
+    @Autowired
+    private BalanceEventService balanceEventService;
 
     @Bean
     public Client client(@Value("${rpcurl}") String rpcurl, @Value("${rpcuser}") String rpcuser, @Value("${rpcpassword}") String rpcpassword) {
@@ -79,8 +83,13 @@ public class Main {
         int psConnectionsEvery = 50;
         try {
             Block lastSavedBlock = blockRepository.findLastBlock();
-            
             long startHeight = lastSavedBlock == null ? 0 : lastSavedBlock.getHeight() + 1;
+            
+            Long lastHeightContainingBalanceEvent = balanceEventService.lastBlockContainingBalanceEvent();
+            for (long balanceEventHeight = lastHeightContainingBalanceEvent == null ? 0 : lastHeightContainingBalanceEvent+1; balanceEventHeight < startHeight; balanceEventHeight++) {
+                System.out.println("asd "+balanceEventHeight);
+                balanceEventService.createBalances(balanceEventHeight);
+            }
             
             for (long clusterizeHeight = Math.max(1, startHeight - 1 - psConnectionsEvery); clusterizeHeight <= startHeight; clusterizeHeight++) {
                 multiInputHeuristicClusterService.clusteerizeBlock(clusterizeHeight);
@@ -104,6 +113,7 @@ public class Main {
 
                     System.out.println("height" + height);
                     blockImportService2.processBlock(block);
+                    balanceEventService.createBalances(height);
                     if (height % psConnectionsEvery == 0) {
                         blockImportService2.fillPstypes();
                         blockImportService2.createPreviousPSConnections(height-psConnectionsEvery);
@@ -199,7 +209,8 @@ public class Main {
             block = blockRepository.findBlockByHash(currentHash);
         }
         blockRepository.deleteSubsequentBlocks(block.getHash());
-        sessionFactory
+        balanceEventService.setLastBlockContainingBalanceEvent(block.getHeight());
+        sessionFactory//TODO: is this required anymore? (deleteSubsequentBlocks already does this)
                 .openSession()
                 .query("MATCH (b:BlockChainTotals) WHERE b.height > " + block.getHeight() + " DETACH DELETE b;",
                         new HashMap<String, Object>(), false);
