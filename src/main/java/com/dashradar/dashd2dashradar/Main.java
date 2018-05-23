@@ -77,6 +77,7 @@ public class Main {
     @Bean
     public CommandLineRunner commandLineRunner(ApplicationContext ctx) {
         return args -> {
+            createIndexes();
             //scheduled tasks only
         };
     }
@@ -201,6 +202,19 @@ public class Main {
         }
     }
 
+    public void createIndexes() {
+        System.out.println("CREATING INDEXES");
+        HashMap<String, Object> params = new HashMap<>();
+        sessionFactory.openSession().query("CREATE INDEX ON :Block(time);", params);
+        sessionFactory.openSession().query("CREATE INDEX ON :Block(height);", params);
+        sessionFactory.openSession().query("CREATE INDEX ON :Address(address);", params);
+        sessionFactory.openSession().query("CREATE INDEX ON :BlockChainTotals(height);", params);
+        sessionFactory.openSession().query("CREATE INDEX ON :BlockChainTotals(time);", params);
+        sessionFactory.openSession().query("CREATE INDEX ON :Transaction(feesSat);", params);
+        sessionFactory.openSession().query("CREATE INDEX ON :Transaction(pstype);", params);
+        sessionFactory.openSession().query("CREATE INDEX ON :Transaction(txid);", params);
+    }
+    
     public void processBlockChain2() throws IOException {
         Block previousBlock = blockRepository.findLastBlock();
         long startHeight = previousBlock == null ? 1 : previousBlock.getHeight() + 1;
