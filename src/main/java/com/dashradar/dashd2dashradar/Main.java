@@ -27,6 +27,7 @@ import com.dashradar.dashd2dashradar.service.BlockImportService;
 import com.dashradar.dashradarbackend.repository.BlockChainTotalsRepository;
 import com.dashradar.dashradarbackend.repository.PrivateSendTotalsRepository;
 import com.dashradar.dashradarbackend.service.BalanceEventService;
+import com.dashradar.dashradarbackend.service.DailyPercentilesService;
 import com.dashradar.dashradarbackend.service.MultiInputHeuristicClusterService;
 
 @Component
@@ -64,6 +65,9 @@ public class Main {
     
     @Autowired
     private BalanceEventService balanceEventService;
+    
+    @Autowired
+    private DailyPercentilesService dailyPercentilesService;
 
     @Bean
     public Client client(@Value("${rpcurl}") String rpcurl, @Value("${rpcuser}") String rpcuser, @Value("${rpcpassword}") String rpcpassword) {
@@ -84,7 +88,7 @@ public class Main {
         try {
             Block lastSavedBlock = blockRepository.findLastBlock();
             long startHeight = lastSavedBlock == null ? 0 : lastSavedBlock.getHeight() + 1;
-            
+   
             Long lastHeightContainingBalanceEvent = balanceEventService.lastBlockContainingBalanceEvent();
             for (long balanceEventHeight = lastHeightContainingBalanceEvent == null ? 0 : lastHeightContainingBalanceEvent+1; balanceEventHeight < startHeight; balanceEventHeight++) {
                 System.out.println("asd "+balanceEventHeight);
@@ -186,6 +190,10 @@ public class Main {
             blockChainTotalsRepository.compute_total_fees();
             System.out.println("Creating Days");
             blockImportService2.last_block_of_day();
+            System.out.println("Creating daily medians");
+            for (double percentile = 0.25; percentile < 1; percentile += 0.25) {
+                dailyPercentilesService.createMissingDailyPercentiles(percentile);
+            }
             System.out.println("Done");
         } catch (Exception ex) {
             System.out.println("Error in scheduled task");
