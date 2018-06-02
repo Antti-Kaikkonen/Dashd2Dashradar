@@ -5,6 +5,8 @@ import java.io.IOException;
 
 public interface BlockImportService {
 
+    public void processBlockV2(BlockDTO block) throws IOException;
+    
     public void processBlock(BlockDTO block) throws IOException;
 
     public void fillPstypes();

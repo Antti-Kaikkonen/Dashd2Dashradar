@@ -24,11 +24,16 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import com.dashradar.dashd2dashradar.service.BlockImportService;
+import com.dashradar.dashd2dashradar.service.BlockImportService2;
 import com.dashradar.dashradarbackend.repository.BlockChainTotalsRepository;
 import com.dashradar.dashradarbackend.repository.PrivateSendTotalsRepository;
+import com.dashradar.dashradarbackend.repository.TransactionRepository;
 import com.dashradar.dashradarbackend.service.BalanceEventService;
 import com.dashradar.dashradarbackend.service.DailyPercentilesService;
 import com.dashradar.dashradarbackend.service.MultiInputHeuristicClusterService;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 @Component
 @Configuration
@@ -43,7 +48,7 @@ public class Main {
     }
 
     @Autowired
-    private BlockImportService blockImportService2;
+    private BlockImportService blockImportService;
 
     @Autowired
     private BlockRepository blockRepository;
@@ -68,7 +73,14 @@ public class Main {
     
     @Autowired
     private DailyPercentilesService dailyPercentilesService;
-
+    
+    @Autowired
+    private TransactionRepository transactionRepository;
+    
+    @Autowired
+    private BlockImportService2 blockImportService2;
+    
+    
     @Bean
     public Client client(@Value("${rpcurl}") String rpcurl, @Value("${rpcuser}") String rpcuser, @Value("${rpcpassword}") String rpcpassword) {
         return new Client(new DashConnector(rpcurl, rpcuser, rpcpassword));
@@ -81,8 +93,52 @@ public class Main {
             //scheduled tasks only
         };
     }
-
-    @Scheduled(fixedDelay = 1000 * 60 * 1)
+    
+    @Scheduled(fixedDelay = 1000)
+    public void checkForChanges() throws IOException {
+        handleNewBlocks();
+        
+        //1a: Check for new blocks
+        //1b: If new blocks -> update blockchaintotals and privatesendtotals. Update day if changed
+        //2: Check for mempool change
+        //handleMempool();
+    }
+    
+    public void handleNewBlocks() throws IOException {
+        String dashdBestBlockHash = client.getBestBlockHash();
+        String neo4jBestBlockHash = blockRepository.findBestBlockHash();
+        if (neo4jBestBlockHash != null && dashdBestBlockHash.equals(neo4jBestBlockHash)) return;
+        Long neo4jHeight = neo4jBestBlockHash == null ? 0 : blockRepository.findBlockHeightByHash(neo4jBestBlockHash);
+        for (long height = neo4jHeight+1; height < 900000; height++) {
+            System.out.println("processing "+height);
+            BlockDTO block = client.getBlockByHeight(height);
+            if (neo4jBestBlockHash != null && !block.getPreviousblockhash().equals(neo4jBestBlockHash)) {//REORG
+                System.out.println("Blockchain reorganization detected at height " + height + ".");
+//                Block newTip = processReorg(block.getPreviousblockhash());
+//                height = newTip.getHeight();
+//                neo4jBestBlockHash = newTip.getHash();
+                continue;
+            }
+            blockImportService2.processBlock(block);
+            neo4jBestBlockHash = block.getHash();
+        }
+        //process blocks
+        //...process block
+        //......process tx
+    }
+    
+    public void handleMempool() throws IOException {
+        List<String> newTxIdCandidates = client.getRawMempool();
+        List<String> neo4jMempoolTxids = transactionRepository.getMempoolTxids();
+        newTxIdCandidates.removeAll(neo4jMempoolTxids);
+        for (String newTxid : newTxIdCandidates) {
+            client.getTrasactionByTxId(newTxid);
+            
+            //TODO: create mempool transaction
+        }
+    }
+    
+    //@Scheduled(fixedDelay = 1000 * 60 * 1)
     public void processBlockChain() throws IOException {
         
         int psConnectionsEvery = 50;
@@ -99,8 +155,8 @@ public class Main {
             for (long clusterizeHeight = Math.max(1, startHeight - 1 - psConnectionsEvery); clusterizeHeight <= startHeight; clusterizeHeight++) {
                 multiInputHeuristicClusterService.clusteerizeBlock(clusterizeHeight);
             }
-            blockImportService2.fillPstypes();
-            blockImportService2.createPreviousPSConnections(startHeight-1-psConnectionsEvery);
+            blockImportService.fillPstypes();
+            blockImportService.createPreviousPSConnections(startHeight-1-psConnectionsEvery);
             
             String previousBlockHash = lastSavedBlock == null ? null : lastSavedBlock.getHash();
             long lastHeight = startHeight-1;
@@ -117,11 +173,11 @@ public class Main {
                     }
 
                     System.out.println("height" + height);
-                    blockImportService2.processBlock(block);
+                    blockImportService.processBlock(block);
                     balanceEventService.createBalances(height);
                     if (height % psConnectionsEvery == 0) {
-                        blockImportService2.fillPstypes();
-                        blockImportService2.createPreviousPSConnections(height-psConnectionsEvery);
+                        blockImportService.fillPstypes();
+                        blockImportService.createPreviousPSConnections(height-psConnectionsEvery);
                         for (long clusterizeHeight = Math.max(1, height - psConnectionsEvery); clusterizeHeight <= height; clusterizeHeight++) {
                             multiInputHeuristicClusterService.clusteerizeBlock(clusterizeHeight);
                             
@@ -135,9 +191,9 @@ public class Main {
                 System.out.println("Blocks processed");
             }
             System.out.println("Filling privatesend types");
-            blockImportService2.fillPstypes();
+            blockImportService.fillPstypes();
             System.out.println("Creationg previous connections");
-            blockImportService2.createPreviousPSConnections(lastHeight);
+            blockImportService.createPreviousPSConnections(lastHeight);
             System.out.println("Creating BlockChainTotals");
             blockChainTotalsRepository.create_block_chain_totals();
             privateSendTotalsRepository.create_privatesend_totals();
@@ -190,7 +246,7 @@ public class Main {
             System.out.println("\ttotal_fees");
             blockChainTotalsRepository.compute_total_fees();
             System.out.println("Creating Days");
-            blockImportService2.last_block_of_day();
+            blockImportService.last_block_of_day();
             System.out.println("Creating daily medians");
             for (double percentile = 0.25; percentile < 1; percentile += 0.25) {
                 dailyPercentilesService.createMissingDailyPercentiles(percentile);

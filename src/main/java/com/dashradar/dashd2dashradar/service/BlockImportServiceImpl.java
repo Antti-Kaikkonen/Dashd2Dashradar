@@ -5,6 +5,7 @@ import com.dashradar.dashdhttpconnector.dto.BlockDTO;
 import com.dashradar.dashdhttpconnector.dto.TransactionDTO;
 import com.dashradar.dashradarbackend.domain.Transaction;
 import com.dashradar.dashradarbackend.repository.BlockChainTotalsRepository;
+import com.dashradar.dashradarbackend.repository.BlockRepository;
 import com.dashradar.dashradarbackend.repository.TransactionRepository;
 import com.dashradar.dashradarbackend.util.TransactionUtil;
 import java.io.IOException;
@@ -37,6 +38,9 @@ public class BlockImportServiceImpl implements BlockImportService {
     
     @Autowired
     private BlockChainTotalsRepository blockChainTotalsRepository;
+    
+    @Autowired
+    private BlockRepository blockRepository;
     
     
     private List<Integer> pstypes = Arrays.asList(Transaction.PRIVATE_SEND_MIXING_0_01, Transaction.PRIVATE_SEND_MIXING_0_1, Transaction.PRIVATE_SEND_MIXING_1_0, Transaction.PRIVATE_SEND_MIXING_10_0, Transaction.PRIVATE_SEND_MIXING_100_0);
@@ -249,6 +253,38 @@ public class BlockImportServiceImpl implements BlockImportService {
         neo4jtransaction.close();
     }
     
+
+    
+    
+    private void processBlockTx(String txid) {
+        
+    }
+    
+    @Override
+    @Transactional
+    public void processBlockV2(BlockDTO block) throws IOException {
+        
+        blockRepository.createEmptyBestBlock(block.getBits(), block.getChainwork(), block.getDifficulty(), block.getHash(), block.getHeight(), block.getMediantime(), 
+                block.getMerkleroot(), block.getNonce(), block.getSize(), block.getTime(), block.getVersion());
+        
+        List<String> mempoolTxids = transcationRepository.getMempoolTxids();
+        for (String txid : block.getTx()) {
+            if (mempoolTxids.contains(txid)) {
+                //move to block
+            } else {
+                //create tx and add to block
+            }
+        }
+        
+        
+        List<TransactionDTO> blockTxs = block.getTx().parallelStream().map(txid -> {
+            try {
+                return client.getTrasactionByTxId(txid);
+            } catch (IOException ex) {
+                throw new RuntimeException();
+            }
+        }).collect(Collectors.toList());
+    }
 
     @Override
     public void processBlock(BlockDTO block) throws IOException {
