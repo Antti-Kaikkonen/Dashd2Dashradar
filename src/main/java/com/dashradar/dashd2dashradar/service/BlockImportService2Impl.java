@@ -9,11 +9,13 @@ import com.dashradar.dashradarbackend.domain.PrivateSendTotals;
 import com.dashradar.dashradarbackend.domain.Transaction;
 import com.dashradar.dashradarbackend.repository.BlockChainTotalsRepository;
 import com.dashradar.dashradarbackend.repository.BlockRepository;
+import com.dashradar.dashradarbackend.repository.DayRepository;
 import com.dashradar.dashradarbackend.repository.PrivateSendTotalsRepository;
 import com.dashradar.dashradarbackend.repository.TransactionInputRepository;
 import com.dashradar.dashradarbackend.repository.TransactionOutputRepository;
 import com.dashradar.dashradarbackend.repository.TransactionRepository;
 import com.dashradar.dashradarbackend.service.BalanceEventService;
+import com.dashradar.dashradarbackend.service.DailyPercentilesService;
 import com.dashradar.dashradarbackend.service.MultiInputHeuristicClusterService;
 import com.dashradar.dashradarbackend.util.TransactionUtil;
 import java.io.IOException;
@@ -56,6 +58,12 @@ public class BlockImportService2Impl implements BlockImportService2 {
     
     @Autowired
     private PrivateSendTotalsRepository privateSendTotalsRepository;
+    
+    @Autowired
+    private DayRepository dayRepository;
+    
+    @Autowired
+    private DailyPercentilesService dailyPercentilesService;
 
     private void createPrivateSendChainTotals(BlockDTO block) {
         privateSendTotalsRepository.compute_mixing_100_0_counts(block.getHash());
@@ -95,7 +103,14 @@ public class BlockImportService2Impl implements BlockImportService2 {
     
     @Override
     @Transactional
-    public void processBlock(BlockDTO block) throws IOException {
+    public void processBlock(BlockDTO block, boolean dayChanged) throws IOException {
+        
+        if (dayChanged) {
+            dayRepository.setLastBlockOfDay(block.getPreviousblockhash());
+            for (double percentile = 0.25; percentile < 1; percentile += 0.25) {
+                dailyPercentilesService.createDailyPercentiles(block.getTime()/(60*60*24)-1, percentile);
+            }
+        }
         
         if (block.getHeight() == 0) {
             System.out.println("creating genesis block");

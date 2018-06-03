@@ -6,7 +6,7 @@ import java.io.IOException;
 
 public interface BlockImportService2 {
     
-    public void processBlock(BlockDTO block) throws IOException;
+    public void processBlock(BlockDTO block, boolean dayChanged) throws IOException;
     
     public void processTx(TransactionDTO transaction);
     

@@ -25,12 +25,19 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import com.dashradar.dashd2dashradar.service.BlockImportService;
 import com.dashradar.dashd2dashradar.service.BlockImportService2;
+import com.dashradar.dashradarbackend.domain.Day;
 import com.dashradar.dashradarbackend.repository.BlockChainTotalsRepository;
+import com.dashradar.dashradarbackend.repository.DayRepository;
 import com.dashradar.dashradarbackend.repository.PrivateSendTotalsRepository;
 import com.dashradar.dashradarbackend.repository.TransactionRepository;
 import com.dashradar.dashradarbackend.service.BalanceEventService;
 import com.dashradar.dashradarbackend.service.DailyPercentilesService;
 import com.dashradar.dashradarbackend.service.MultiInputHeuristicClusterService;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -80,6 +87,10 @@ public class Main {
     @Autowired
     private BlockImportService2 blockImportService2;
     
+    @Autowired
+    private DayRepository dayRepository;
+    
+    
     
     @Bean
     public Client client(@Value("${rpcurl}") String rpcurl, @Value("${rpcuser}") String rpcuser, @Value("${rpcpassword}") String rpcpassword) {
@@ -108,11 +119,13 @@ public class Main {
     public void handleNewBlocks() throws IOException {
         String dashdBestBlockHash = client.getBestBlockHash();
         String neo4jBestBlockHash = blockRepository.findBestBlockHash();
+        Long lastDay = dayRepository.lastDay();
         if (neo4jBestBlockHash != null && dashdBestBlockHash.equals(neo4jBestBlockHash)) return;
         Long neo4jHeight = neo4jBestBlockHash == null ? -1 : blockRepository.findBlockHeightByHash(neo4jBestBlockHash);
         for (long height = neo4jHeight+1; height < 900000; height++) {
             System.out.println("processing "+height);
             BlockDTO block = client.getBlockByHeight(height);
+            long blockDay = block.getTime()/(60*60*24);
             if (neo4jBestBlockHash != null && !block.getPreviousblockhash().equals(neo4jBestBlockHash)) {//REORG
                 System.out.println("Blockchain reorganization detected at height " + height + ".");
 //                Block newTip = processReorg(block.getPreviousblockhash());
@@ -120,7 +133,14 @@ public class Main {
 //                neo4jBestBlockHash = newTip.getHash();
                 continue;
             }
-            blockImportService2.processBlock(block);
+            if (lastDay == null) lastDay = blockDay;
+            boolean dayChanged = blockDay > lastDay;
+            blockImportService2.processBlock(block, dayChanged);
+            if (dayChanged) { //Date changed
+                LocalDate printDay = LocalDate.ofEpochDay(blockDay);
+                System.out.println("Day changed to " + printDay);
+                lastDay = blockDay;
+            }
             neo4jBestBlockHash = block.getHash();
         }
         //process blocks
