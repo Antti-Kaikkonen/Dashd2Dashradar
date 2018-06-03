@@ -90,11 +90,12 @@ public class Main {
     public CommandLineRunner commandLineRunner(ApplicationContext ctx) {
         return args -> {
             createIndexes();
+            checkForChanges();
             //scheduled tasks only
         };
     }
     
-    @Scheduled(fixedDelay = 1000)
+    //@Scheduled(fixedDelay = 10000)
     public void checkForChanges() throws IOException {
         handleNewBlocks();
         
@@ -108,7 +109,7 @@ public class Main {
         String dashdBestBlockHash = client.getBestBlockHash();
         String neo4jBestBlockHash = blockRepository.findBestBlockHash();
         if (neo4jBestBlockHash != null && dashdBestBlockHash.equals(neo4jBestBlockHash)) return;
-        Long neo4jHeight = neo4jBestBlockHash == null ? 0 : blockRepository.findBlockHeightByHash(neo4jBestBlockHash);
+        Long neo4jHeight = neo4jBestBlockHash == null ? -1 : blockRepository.findBlockHeightByHash(neo4jBestBlockHash);
         for (long height = neo4jHeight+1; height < 900000; height++) {
             System.out.println("processing "+height);
             BlockDTO block = client.getBlockByHeight(height);
@@ -195,56 +196,56 @@ public class Main {
             System.out.println("Creationg previous connections");
             blockImportService.createPreviousPSConnections(lastHeight);
             System.out.println("Creating BlockChainTotals");
-            blockChainTotalsRepository.create_block_chain_totals();
+            //blockChainTotalsRepository.create_block_chain_totals();
             privateSendTotalsRepository.create_privatesend_totals();
             System.out.println("\ttx_count");
-            blockChainTotalsRepository.compute_total_tx_count();
+            //blockChainTotalsRepository.compute_total_tx_count();
             System.out.println("\tinput_count");
-            blockChainTotalsRepository.compute_input_counts();
+            //blockChainTotalsRepository.compute_input_counts();
             System.out.println("\toutput_count");
-            blockChainTotalsRepository.compute_output_counts();
+            //blockChainTotalsRepository.compute_output_counts();
             System.out.println("\tmixing_100_0_count");
 //            blockChainTotalsRepository.compute_mixing_100_0_counts();
-            privateSendTotalsRepository.compute_mixing_100_0_counts();
+            //privateSendTotalsRepository.compute_mixing_100_0_counts();
             System.out.println("\tmixing_10_0_count");
 //            blockChainTotalsRepository.compute_mixing_10_0_counts();
-            privateSendTotalsRepository.compute_mixing_10_0_counts();
+            //privateSendTotalsRepository.compute_mixing_10_0_counts();
             System.out.println("\tmixing_1_0_count");
 //            blockChainTotalsRepository.compute_mixing_1_0_counts();
-            privateSendTotalsRepository.compute_mixing_1_0_counts();
+            //privateSendTotalsRepository.compute_mixing_1_0_counts();
             System.out.println("\tmixing_0_1_count");
 //            blockChainTotalsRepository.compute_mixing_0_1_counts();
-            privateSendTotalsRepository.compute_mixing_0_1_counts();
+            //privateSendTotalsRepository.compute_mixing_0_1_counts();
             System.out.println("\tmixing_0_01_count");
 //            blockChainTotalsRepository.compute_mixing_0_01_counts();
-            privateSendTotalsRepository.compute_mixing_0_01_counts();
+            //privateSendTotalsRepository.compute_mixing_0_01_counts();
             System.out.println("\tprivatesend_tx_count");
 //            blockChainTotalsRepository.compute_privatesend_tx_count();
-            privateSendTotalsRepository.compute_privatesend_tx_count();
+//            privateSendTotalsRepository.compute_privatesend_tx_count();
             System.out.println("\tprivatesend_mixing_output_counts");
-            privateSendTotalsRepository.compute_privatesend_mixing_0_01_output_count();
-            privateSendTotalsRepository.compute_privatesend_mixing_0_1_output_count();
-            privateSendTotalsRepository.compute_privatesend_mixing_1_0_output_count();
-            privateSendTotalsRepository.compute_privatesend_mixing_10_0_output_count();
-            privateSendTotalsRepository.compute_privatesend_mixing_100_0_output_count();
+//            privateSendTotalsRepository.compute_privatesend_mixing_0_01_output_count();
+//            privateSendTotalsRepository.compute_privatesend_mixing_0_1_output_count();
+//            privateSendTotalsRepository.compute_privatesend_mixing_1_0_output_count();
+//            privateSendTotalsRepository.compute_privatesend_mixing_10_0_output_count();
+//            privateSendTotalsRepository.compute_privatesend_mixing_100_0_output_count();
             System.out.println("\tprivatesend_mixing_spent_output_counts");
-            privateSendTotalsRepository.compute_privatesend_mixing_0_01_spent_output_count();
-            privateSendTotalsRepository.compute_privatesend_mixing_0_1_spent_output_count();
-            privateSendTotalsRepository.compute_privatesend_mixing_1_0_spent_output_count();
-            privateSendTotalsRepository.compute_privatesend_mixing_10_0_spent_output_count();
-            privateSendTotalsRepository.compute_privatesend_mixing_100_0_spent_output_count();
+//            privateSendTotalsRepository.compute_privatesend_mixing_0_01_spent_output_count();
+//            privateSendTotalsRepository.compute_privatesend_mixing_0_1_spent_output_count();
+//            privateSendTotalsRepository.compute_privatesend_mixing_1_0_spent_output_count();
+//            privateSendTotalsRepository.compute_privatesend_mixing_10_0_spent_output_count();
+//            privateSendTotalsRepository.compute_privatesend_mixing_100_0_spent_output_count();
             System.out.println("\tprivate_tx_input_count");
-            privateSendTotalsRepository.compute_privatesend_tx_input_count();
+//            privateSendTotalsRepository.compute_privatesend_tx_input_count();
             System.out.println("\ttotal_block_rewards");
-            blockChainTotalsRepository.compute_total_block_rewards();
+            //blockChainTotalsRepository.compute_total_block_rewards();
             System.out.println("\ttotal_block_size");
-            blockChainTotalsRepository.compute_total_block_size();
+            //blockChainTotalsRepository.compute_total_block_size();
             System.out.println("\ttotal_output_volume");
-            blockChainTotalsRepository.compute_total_output_volume();
+            //blockChainTotalsRepository.compute_total_output_volume();
             System.out.println("\ttotal_transaction_size");
-            blockChainTotalsRepository.compute_total_transaction_size();
+            //blockChainTotalsRepository.compute_total_transaction_size();
             System.out.println("\ttotal_fees");
-            blockChainTotalsRepository.compute_total_fees();
+            //blockChainTotalsRepository.compute_total_fees();
             System.out.println("Creating Days");
             blockImportService.last_block_of_day();
             System.out.println("Creating daily medians");
@@ -263,6 +264,7 @@ public class Main {
         HashMap<String, Object> params = new HashMap<>();
         sessionFactory.openSession().query("CREATE INDEX ON :Block(time);", params);
         sessionFactory.openSession().query("CREATE INDEX ON :Block(height);", params);
+        sessionFactory.openSession().query("CREATE INDEX ON :Block(hash);", params);
         sessionFactory.openSession().query("CREATE INDEX ON :Address(address);", params);
         sessionFactory.openSession().query("CREATE INDEX ON :BlockChainTotals(height);", params);
         sessionFactory.openSession().query("CREATE INDEX ON :BlockChainTotals(time);", params);

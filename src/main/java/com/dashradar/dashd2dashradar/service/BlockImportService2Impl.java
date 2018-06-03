@@ -5,16 +5,23 @@ import com.dashradar.dashdhttpconnector.dto.BlockDTO;
 import com.dashradar.dashdhttpconnector.dto.TransactionDTO;
 import com.dashradar.dashdhttpconnector.dto.TransactionDTO.VIn;
 import com.dashradar.dashdhttpconnector.dto.TransactionDTO.VOut;
+import com.dashradar.dashradarbackend.domain.PrivateSendTotals;
 import com.dashradar.dashradarbackend.domain.Transaction;
+import com.dashradar.dashradarbackend.repository.BlockChainTotalsRepository;
 import com.dashradar.dashradarbackend.repository.BlockRepository;
+import com.dashradar.dashradarbackend.repository.PrivateSendTotalsRepository;
 import com.dashradar.dashradarbackend.repository.TransactionInputRepository;
 import com.dashradar.dashradarbackend.repository.TransactionOutputRepository;
 import com.dashradar.dashradarbackend.repository.TransactionRepository;
 import com.dashradar.dashradarbackend.service.BalanceEventService;
 import com.dashradar.dashradarbackend.service.MultiInputHeuristicClusterService;
+import com.dashradar.dashradarbackend.util.TransactionUtil;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -43,13 +50,47 @@ public class BlockImportService2Impl implements BlockImportService2 {
     
     @Autowired
     private BalanceEventService balanceEventService;
+    
+    @Autowired
+    private BlockChainTotalsRepository blockChainTotalsRepository;
+    
+    @Autowired
+    private PrivateSendTotalsRepository privateSendTotalsRepository;
 
     private void createPrivateSendChainTotals(BlockDTO block) {
+        privateSendTotalsRepository.compute_mixing_100_0_counts(block.getHash());
+        privateSendTotalsRepository.compute_mixing_10_0_counts(block.getHash());
+        privateSendTotalsRepository.compute_mixing_1_0_counts(block.getHash());
+        privateSendTotalsRepository.compute_mixing_0_1_counts(block.getHash());
+        privateSendTotalsRepository.compute_mixing_0_01_counts(block.getHash());
+        
+        privateSendTotalsRepository.compute_privatesend_tx_count(block.getHash());
+        
+        privateSendTotalsRepository.compute_privatesend_mixing_0_01_output_count(block.getHash());
+        privateSendTotalsRepository.compute_privatesend_mixing_0_1_output_count(block.getHash());
+        privateSendTotalsRepository.compute_privatesend_mixing_1_0_output_count(block.getHash());
+        privateSendTotalsRepository.compute_privatesend_mixing_10_0_output_count(block.getHash());
+        privateSendTotalsRepository.compute_privatesend_mixing_100_0_output_count(block.getHash());
+        
+        privateSendTotalsRepository.compute_privatesend_mixing_0_01_spent_output_count(block.getHash());
+        privateSendTotalsRepository.compute_privatesend_mixing_0_1_spent_output_count(block.getHash());
+        privateSendTotalsRepository.compute_privatesend_mixing_1_0_spent_output_count(block.getHash());
+        privateSendTotalsRepository.compute_privatesend_mixing_10_0_spent_output_count(block.getHash());
+        privateSendTotalsRepository.compute_privatesend_mixing_100_0_spent_output_count(block.getHash());
+        
+        privateSendTotalsRepository.compute_privatesend_tx_input_count(block.getHash());
         //TODO
     }
     
     private void createBlockChainTotals(BlockDTO block) {
-        //TODO
+        blockChainTotalsRepository.compute_input_counts(block.getHash());
+        blockChainTotalsRepository.compute_output_counts(block.getHash());
+        blockChainTotalsRepository.compute_total_block_rewards(block.getHash());
+        blockChainTotalsRepository.compute_total_block_size(block.getHash());
+        blockChainTotalsRepository.compute_total_fees(block.getHash());
+        blockChainTotalsRepository.compute_total_output_volume(block.getHash());
+        blockChainTotalsRepository.compute_total_transaction_size(block.getHash());
+        blockChainTotalsRepository.compute_total_tx_count(block.getHash());
     }
     
     @Override
@@ -57,6 +98,7 @@ public class BlockImportService2Impl implements BlockImportService2 {
     public void processBlock(BlockDTO block) throws IOException {
         
         if (block.getHeight() == 0) {
+            System.out.println("creating genesis block");
             blockRepository.createGenesisBlock(block.getBits(), block.getChainwork(), block.getDifficulty(), block.getHash(), block.getHeight(), block.getMediantime(), 
                 block.getMerkleroot(), block.getNonce(), block.getSize(), block.getTime(), block.getVersion());
             return;
@@ -81,16 +123,35 @@ public class BlockImportService2Impl implements BlockImportService2 {
                     }
                 }
                 for (VOut vout : tx.getVout()) {
-                    transactionOutputRepository.createTransactionOutput(txid, vout.getN(), vout.getValueSat(), Arrays.asList(vout.getScriptPubKey().getAddresses()));
+                    List<String> addresses;
+                    if (vout.getScriptPubKey() != null && vout.getScriptPubKey().getAddresses() != null) {
+                        addresses = Arrays.asList(vout.getScriptPubKey().getAddresses());
+                    } else {
+                        addresses = new ArrayList<>();
+                    }
+                    transactionOutputRepository.createTransactionOutput(txid, vout.getN(), vout.getValueSat(), addresses);
                 }
             }
-            multiInputHeuristicClusterService.clusterizeTransaction(txid);
+            if (n > 0) {
+                transactionRepository.compute_tx_fee(txid);
+                multiInputHeuristicClusterService.clusterizeTransaction(txid);
+                
+                Transaction tx = transactionRepository.findByTxid(txid, 2);
+                int psType = TransactionUtil.getPsType(tx);
+                tx.setPstype(psType);
+                transactionRepository.save(tx);
+            }
             balanceEventService.createBalances(txid);
             n++;
         }
         
         createBlockChainTotals(block);
         createPrivateSendChainTotals(block);
+        transactionRepository.create_previous_connections(block.getHash(), Transaction.PRIVATE_SEND_MIXING_100_0);
+        transactionRepository.create_previous_connections(block.getHash(), Transaction.PRIVATE_SEND_MIXING_10_0);
+        transactionRepository.create_previous_connections(block.getHash(), Transaction.PRIVATE_SEND_MIXING_1_0);
+        transactionRepository.create_previous_connections(block.getHash(), Transaction.PRIVATE_SEND_MIXING_0_1);
+        transactionRepository.create_previous_connections(block.getHash(), Transaction.PRIVATE_SEND_MIXING_0_01);
     }
 
     @Override
