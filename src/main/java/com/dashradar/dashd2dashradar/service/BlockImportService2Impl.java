@@ -5,6 +5,7 @@ import com.dashradar.dashdhttpconnector.dto.BlockDTO;
 import com.dashradar.dashdhttpconnector.dto.TransactionDTO;
 import com.dashradar.dashdhttpconnector.dto.TransactionDTO.VIn;
 import com.dashradar.dashdhttpconnector.dto.TransactionDTO.VOut;
+import com.dashradar.dashradarbackend.domain.Block;
 import com.dashradar.dashradarbackend.domain.PrivateSendTotals;
 import com.dashradar.dashradarbackend.domain.Transaction;
 import com.dashradar.dashradarbackend.repository.BlockChainTotalsRepository;
@@ -118,6 +119,11 @@ public class BlockImportService2Impl implements BlockImportService2 {
                 block.getMerkleroot(), block.getNonce(), block.getSize(), block.getTime(), block.getVersion());
             return;
         }
+        Boolean unorhanBlock = blockRepository.unorhanBlock(block.getHash());
+        if (unorhanBlock != null && unorhanBlock == true) {
+            balanceEventService.handleUnorphanedBlock(block.getHash());
+            return;
+        }
         blockRepository.createEmptyBestBlock(block.getBits(), block.getChainwork(), block.getDifficulty(), block.getHash(), block.getHeight(), block.getMediantime(), 
                 block.getMerkleroot(), block.getNonce(), block.getSize(), block.getTime(), block.getVersion());
         
@@ -154,7 +160,9 @@ public class BlockImportService2Impl implements BlockImportService2 {
                 Transaction tx = transactionRepository.findByTxid(txid, 2);
                 int psType = TransactionUtil.getPsType(tx);
                 tx.setPstype(psType);
-                transactionRepository.save(tx);
+                if (tx.getPstype() != Transaction.PRIVATE_SEND_NONE) {
+                    transactionRepository.save(tx);
+                }
             }
             balanceEventService.createBalances(txid);
             n++;
@@ -174,5 +182,5 @@ public class BlockImportService2Impl implements BlockImportService2 {
         multiInputHeuristicClusterService.clusterizeTransaction(transaction.getTxid());
         
     }
-    
+      
 }
