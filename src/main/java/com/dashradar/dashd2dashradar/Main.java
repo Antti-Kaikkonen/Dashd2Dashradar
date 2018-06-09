@@ -24,16 +24,28 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.stereotype.Component;
 import com.dashradar.dashd2dashradar.service.BlockImportService;
 import com.dashradar.dashd2dashradar.service.BlockImportService2;
+import com.dashradar.dashdhttpconnector.dto.MempoolTransactionDTO;
+import com.dashradar.dashdhttpconnector.dto.TransactionDTO;
+import com.dashradar.dashradarbackend.domain.Transaction;
 import com.dashradar.dashradarbackend.repository.BlockChainTotalsRepository;
 import com.dashradar.dashradarbackend.repository.DayRepository;
 import com.dashradar.dashradarbackend.repository.PrivateSendTotalsRepository;
+import com.dashradar.dashradarbackend.repository.TransactionInputRepository;
+import com.dashradar.dashradarbackend.repository.TransactionOutputRepository;
 import com.dashradar.dashradarbackend.repository.TransactionRepository;
 import com.dashradar.dashradarbackend.service.BalanceEventService;
 import com.dashradar.dashradarbackend.service.DailyPercentilesService;
 import com.dashradar.dashradarbackend.service.MultiInputHeuristicClusterService;
+import com.dashradar.dashradarbackend.util.TransactionUtil;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.transaction.annotation.Transactional;
 
 @Component
 @Configuration
@@ -83,6 +95,12 @@ public class Main {
     @Autowired
     private DayRepository dayRepository;
     
+    @Autowired
+    private TransactionInputRepository transactionInputRepository;
+    
+    @Autowired
+    private TransactionOutputRepository transactionOutputRepository;
+    
     
     
     @Bean
@@ -95,20 +113,19 @@ public class Main {
         return args -> {
             createIndexes();
             dayRepository.deleteOrphanedDays();
-//            for (double percentile = 0.25; percentile <= 0.75; percentile += 0.25) {
-//                dailyPercentilesService.createMissingDailyPercentiles(percentile);
-//            }
-            checkForChanges();
+            //checkForChanges();
             //scheduled tasks only
         };
     }
     
-    //@Scheduled(initialDelay = 1000, fixedDelay = 10000)
+    @Scheduled(initialDelay = 5000, fixedDelay = 50)
     public void checkForChanges() throws IOException {
         try {
             handleNewBlocks();
+            handleMempool();
         } catch(Exception e) {
-            System.out.println("x");
+            e.printStackTrace();
+            //System.out.println("x");
         }
         
         //1a: Check for new blocks
@@ -121,15 +138,18 @@ public class Main {
         String dashdBestBlockHash = client.getBestBlockHash();
         String neo4jBestBlockHash = blockRepository.findBestBlockHash();
         Long lastDay = dayRepository.lastDay();
-        System.out.println("lastDay:"+lastDay);
+        //System.out.println("lastDay:"+lastDay);
         if (neo4jBestBlockHash != null && dashdBestBlockHash.equals(neo4jBestBlockHash)) return;
         Long neo4jHeight = neo4jBestBlockHash == null ? -1 : blockRepository.findBlockHeightByHash(neo4jBestBlockHash);
-        for (long height = neo4jHeight+1; height < 900000; height++) {
+        for (long height = neo4jHeight+1; height <= client.getBlock(dashdBestBlockHash).getHeight(); height++) {
             System.out.println("processing "+height);
             BlockDTO block = client.getBlockByHeight(height);
             long blockDay = block.getTime()/(60*60*24);
             if (neo4jBestBlockHash != null && !block.getPreviousblockhash().equals(neo4jBestBlockHash)) {//REORG
                 System.out.println("Blockchain reorganization detected at height " + height + ".");
+                for (int i = 0; i < 5; i++) {
+                    System.out.println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+                }
                 Block newTip = processReorg(block.getPreviousblockhash());
                 dayRepository.deleteOrphanedDays();
                 lastDay = dayRepository.lastDay();
@@ -149,13 +169,49 @@ public class Main {
         }
     }
     
+    @Transactional
     public void handleMempool() throws IOException {
-        List<String> newTxIdCandidates = client.getRawMempool();
+        //List<String> newTxIdCandidates = client.getRawMempool();
+        
+        Map<String, MempoolTransactionDTO> rawMempoolDetailed = client.getRawMempoolDetailed();
+        Set<String> newTxIdCandidates = rawMempoolDetailed.keySet();
         List<String> neo4jMempoolTxids = transactionRepository.getMempoolTxids();
-        newTxIdCandidates.removeAll(neo4jMempoolTxids);
+        
+        String dashdBestBlockHash = client.getBestBlockHash();
+        String neo4jBestBlockHash = blockRepository.findBestBlockHash();
+        if (!dashdBestBlockHash.equals(neo4jBestBlockHash)) return;//This avoids saving mempool transactions with referenced outputs missing from the blockchain
+        
+        newTxIdCandidates = newTxIdCandidates.stream().filter(candidate -> {
+            if (neo4jMempoolTxids.contains(candidate)) return false;//Only save once
+            boolean dependingTransactionsSaved = rawMempoolDetailed.get(candidate).getDepends().stream().allMatch(depend -> neo4jMempoolTxids.contains(depend));
+            return dependingTransactionsSaved;
+        }).collect(Collectors.toSet());
         for (String newTxid : newTxIdCandidates) {
-            client.getTrasactionByTxId(newTxid);
-            //TODO..
+            //System.out.println("Adding "+newTxid+" to mempool");
+            TransactionDTO tx = client.getTrasactionByTxId(newTxid);
+            transactionRepository.createMempoolTransaction(tx.getLocktime(), Transaction.PRIVATE_SEND_NONE, tx.getSize(), tx.getTxid(), tx.getVersion());
+            for (TransactionDTO.VIn vin : tx.getVin()) {
+                transactionInputRepository.createTransactionInput(tx.getTxid(), vin.getSequence(), vin.getTxid(), vin.getVout());
+            }
+            for (TransactionDTO.VOut vout : tx.getVout()) {
+                List<String> addresses;
+                if (vout.getScriptPubKey() != null && vout.getScriptPubKey().getAddresses() != null) {
+                    addresses = Arrays.asList(vout.getScriptPubKey().getAddresses());
+                } else {
+                    addresses = new ArrayList<>();
+                }
+                transactionOutputRepository.createTransactionOutput(tx.getTxid(), vout.getN(), vout.getValueSat(), addresses);
+            }
+            transactionRepository.compute_tx_fee(tx.getTxid());
+            multiInputHeuristicClusterService.clusterizeTransaction(tx.getTxid());
+
+            Transaction tx2 = transactionRepository.findByTxid(tx.getTxid(), 2);
+            int psType = TransactionUtil.getPsType(tx2);
+            tx2.setPstype(psType);
+            if (tx2.getPstype() != Transaction.PRIVATE_SEND_NONE) {
+                transactionRepository.save(tx2);
+            }
+            //balanceEventService.createBalances(tx.getTxid());
         }
     }
 

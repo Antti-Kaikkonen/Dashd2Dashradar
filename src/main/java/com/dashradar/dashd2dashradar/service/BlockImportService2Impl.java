@@ -131,7 +131,7 @@ public class BlockImportService2Impl implements BlockImportService2 {
         int n = 0;
         for (String txid : block.getTx()) {
             if (mempoolTxids.contains(txid)) {
-                transactionRepository.moveMempooTransactionToBlock(txid, block.getHash());
+                transactionRepository.moveMempooTransactionToBlock(txid, block.getHash(), n);
                 //move to block
             } else {
                 TransactionDTO tx = client.getTrasactionByTxId(txid);
@@ -152,16 +152,16 @@ public class BlockImportService2Impl implements BlockImportService2 {
                     }
                     transactionOutputRepository.createTransactionOutput(txid, vout.getN(), vout.getValueSat(), addresses);
                 }
-            }
-            if (n > 0) {
-                transactionRepository.compute_tx_fee(txid);
-                multiInputHeuristicClusterService.clusterizeTransaction(txid);
-                
-                Transaction tx = transactionRepository.findByTxid(txid, 2);
-                int psType = TransactionUtil.getPsType(tx);
-                tx.setPstype(psType);
-                if (tx.getPstype() != Transaction.PRIVATE_SEND_NONE) {
-                    transactionRepository.save(tx);
+                if (n > 0) {
+                    transactionRepository.compute_tx_fee(txid);
+                    multiInputHeuristicClusterService.clusterizeTransaction(txid);
+
+                    Transaction tx2 = transactionRepository.findByTxid(txid, 2);
+                    int psType = TransactionUtil.getPsType(tx2);
+                    tx2.setPstype(psType);
+                    if (tx2.getPstype() != Transaction.PRIVATE_SEND_NONE) {
+                        transactionRepository.save(tx2);
+                    }
                 }
             }
             balanceEventService.createBalances(txid);
@@ -175,6 +175,18 @@ public class BlockImportService2Impl implements BlockImportService2 {
         transactionRepository.create_previous_connections(block.getHash(), Transaction.PRIVATE_SEND_MIXING_1_0);
         transactionRepository.create_previous_connections(block.getHash(), Transaction.PRIVATE_SEND_MIXING_0_1);
         transactionRepository.create_previous_connections(block.getHash(), Transaction.PRIVATE_SEND_MIXING_0_01);
+        
+        transactionRepository.create_first_round_connections(block.getHash(), Transaction.PRIVATE_SEND_MIXING_100_0);
+        transactionRepository.create_first_round_connections(block.getHash(), Transaction.PRIVATE_SEND_MIXING_10_0);
+        transactionRepository.create_first_round_connections(block.getHash(), Transaction.PRIVATE_SEND_MIXING_1_0);
+        transactionRepository.create_first_round_connections(block.getHash(), Transaction.PRIVATE_SEND_MIXING_0_1);
+        transactionRepository.create_first_round_connections(block.getHash(), Transaction.PRIVATE_SEND_MIXING_0_01);
+        
+        transactionRepository.create_mixing_source_connections(block.getHash(), Transaction.PRIVATE_SEND_MIXING_100_0);
+        transactionRepository.create_mixing_source_connections(block.getHash(), Transaction.PRIVATE_SEND_MIXING_10_0);
+        transactionRepository.create_mixing_source_connections(block.getHash(), Transaction.PRIVATE_SEND_MIXING_1_0);
+        transactionRepository.create_mixing_source_connections(block.getHash(), Transaction.PRIVATE_SEND_MIXING_0_1);
+        transactionRepository.create_mixing_source_connections(block.getHash(), Transaction.PRIVATE_SEND_MIXING_0_01);
     }
 
     @Override
