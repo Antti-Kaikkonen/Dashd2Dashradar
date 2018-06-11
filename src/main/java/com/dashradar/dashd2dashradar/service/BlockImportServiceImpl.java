@@ -43,7 +43,7 @@ public class BlockImportServiceImpl implements BlockImportService {
     private BlockRepository blockRepository;
     
     
-    private List<Integer> pstypes = Arrays.asList(Transaction.PRIVATE_SEND_MIXING_0_01, Transaction.PRIVATE_SEND_MIXING_0_1, Transaction.PRIVATE_SEND_MIXING_1_0, Transaction.PRIVATE_SEND_MIXING_10_0, Transaction.PRIVATE_SEND_MIXING_100_0);
+    private final List<Integer> pstypes = Arrays.asList(Transaction.PRIVATE_SEND_MIXING_0_01, Transaction.PRIVATE_SEND_MIXING_0_1, Transaction.PRIVATE_SEND_MIXING_1_0, Transaction.PRIVATE_SEND_MIXING_10_0, Transaction.PRIVATE_SEND_MIXING_100_0);
     
 
     @Override
