@@ -23,7 +23,6 @@ import org.springframework.context.annotation.Import;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.stereotype.Component;
 import com.dashradar.dashd2dashradar.service.BlockImportService;
-import com.dashradar.dashd2dashradar.service.BlockImportService2;
 import com.dashradar.dashdhttpconnector.dto.MempoolTransactionDTO;
 import com.dashradar.dashdhttpconnector.dto.TransactionDTO;
 import com.dashradar.dashradarbackend.domain.Transaction;
@@ -88,9 +87,6 @@ public class Main {
     
     @Autowired
     private TransactionRepository transactionRepository;
-    
-    @Autowired
-    private BlockImportService2 blockImportService2;
     
     @Autowired
     private DayRepository dayRepository;
@@ -159,7 +155,7 @@ public class Main {
             }
             if (lastDay == null) lastDay = blockDay-1;
             boolean dayChanged = blockDay > lastDay+1;
-            blockImportService2.processBlock(block, dayChanged);
+            blockImportService.processBlock(block, dayChanged);
             if (dayChanged) { //Date changed
                 LocalDate printDay = LocalDate.ofEpochDay(blockDay);
                 System.out.println("Day changed to " + printDay);
@@ -189,7 +185,7 @@ public class Main {
         for (String newTxid : newTxIdCandidates) {
             //System.out.println("Adding "+newTxid+" to mempool");
             TransactionDTO tx = client.getTrasactionByTxId(newTxid);
-            transactionRepository.createMempoolTransaction(tx.getLocktime(), Transaction.PRIVATE_SEND_NONE, tx.getSize(), tx.getTxid(), tx.getVersion());
+            transactionRepository.createMempoolTransaction(tx.getLocktime(), Transaction.PRIVATE_SEND_NONE, tx.getSize(), tx.getTxid(), tx.getVersion(), System.currentTimeMillis()/1000);
             for (TransactionDTO.VIn vin : tx.getVin()) {
                 transactionInputRepository.createTransactionInput(tx.getTxid(), vin.getSequence(), vin.getTxid(), vin.getVout());
             }

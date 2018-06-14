@@ -1,22 +1,13 @@
 package com.dashradar.dashd2dashradar.service;
 
 import com.dashradar.dashdhttpconnector.dto.BlockDTO;
+import com.dashradar.dashdhttpconnector.dto.TransactionDTO;
 import java.io.IOException;
 
 public interface BlockImportService {
-
-    public void processBlockV2(BlockDTO block) throws IOException;
     
-    public void processBlock(BlockDTO block) throws IOException;
-
-    public void fillPstypes();
-
-    void createPreviousPSConnections();
+    public void processBlock(BlockDTO block, boolean dayChanged) throws IOException;
     
-    void createPreviousPSConnections(long afterBlock);
-
-    void calculateTransactionFees();
-
-    void last_block_of_day();
-
+    public void processTx(TransactionDTO transaction);
+    
 }
