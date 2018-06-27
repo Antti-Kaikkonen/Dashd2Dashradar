@@ -225,7 +225,7 @@ public class Main {
         sessionFactory.openSession().query("CREATE INDEX ON :Transaction(txid);", params);
     }
     
-
+    @Transactional
     public Block processReorg(String reorghash) throws IOException {
         Block block = blockRepository.findBlockByHash(reorghash);
         String currentHash = reorghash;
