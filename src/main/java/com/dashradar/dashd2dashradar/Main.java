@@ -36,15 +36,21 @@ import com.dashradar.dashradarbackend.service.BalanceEventService;
 import com.dashradar.dashradarbackend.service.DailyPercentilesService;
 import com.dashradar.dashradarbackend.service.MultiInputHeuristicClusterService;
 import com.dashradar.dashradarbackend.util.TransactionUtil;
+import java.math.BigInteger;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+import org.apache.commons.codec.binary.Hex;
+import org.apache.commons.lang3.ArrayUtils;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.transaction.annotation.Transactional;
+import org.zeromq.ZMQ;
 
 @Component
 @Configuration
@@ -97,7 +103,9 @@ public class Main {
     @Autowired
     private TransactionOutputRepository transactionOutputRepository;
     
+    @Value("${zmqaddress}") String zmqaddress;
     
+    private Set<String> unsavedTxLocks = ConcurrentHashMap.newKeySet();//contains txids
     
     @Bean
     public Client client(@Value("${rpcurl}") String rpcurl, @Value("${rpcuser}") String rpcuser, @Value("${rpcpassword}") String rpcpassword) {
@@ -109,26 +117,52 @@ public class Main {
         return args -> {
             createIndexes();
             dayRepository.deleteOrphanedDays();
-            //checkForChanges();
-            //scheduled tasks only
+            
+            instantSendLoop();
         };
+    }
+    
+    public void instantSendLoop() {
+        ZMQ.Context context = ZMQ.context(1);
+        ZMQ.Socket subscriber = context.socket(ZMQ.SUB);
+        subscriber.connect(zmqaddress);
+        subscriber.subscribe("hashtxlock");
+        while (!Thread.currentThread ().isInterrupted ()) {
+            // Read envelope with address
+            String address = subscriber.recvStr();
+            String hash = Hex.encodeHexString(subscriber.recv());
+            byte[] seq = subscriber.recv();
+            ArrayUtils.reverse(seq);//convert little endian to big endian
+            long sequence = new BigInteger(seq).longValue();
+            if (address.equals("hashtxlock")) {
+                Boolean set = transactionRepository.setTxLockIfExists(hash);
+                if (set == null || set == false) {
+                    unsavedTxLocks.add(hash);
+                }
+            }
+        }
+        subscriber.close();
+        context.term();
     }
     
     @Scheduled(initialDelay = 5000, fixedDelay = 50)
     public void checkForChanges() throws IOException {
         try {
             handleNewBlocks();
-            handleMempool();
+            Set<String> savedMempoolTxids = handleMempool();
+            for (String txid : unsavedTxLocks) {
+                Boolean set = transactionRepository.setTxLockIfExists(txid);
+                if (set != null && set == true) {
+                    unsavedTxLocks.remove(txid);
+                }
+            }
         } catch(Exception e) {
             e.printStackTrace();
-            //System.out.println("x");
         }
-        
-        //1a: Check for new blocks
-        //1b: If new blocks -> update blockchaintotals and privatesendtotals. Update day if changed
-        //2: Check for mempool change
-        //handleMempool();
+   
     }
+    
+    
     
     public void handleNewBlocks() throws IOException {
         String dashdBestBlockHash = client.getBestBlockHash();
@@ -156,6 +190,12 @@ public class Main {
             if (lastDay == null) lastDay = blockDay-1;
             boolean dayChanged = blockDay > lastDay+1;
             blockImportService.processBlock(block, dayChanged);
+            for (String txid : block.getTx()) {
+                if (unsavedTxLocks.contains(txid)) {
+                    transactionRepository.setTxLockIfExists(txid);
+                    unsavedTxLocks.remove(txid);
+                }
+            }
             if (dayChanged) { //Date changed
                 LocalDate printDay = LocalDate.ofEpochDay(blockDay);
                 System.out.println("Day changed to " + printDay);
@@ -166,7 +206,7 @@ public class Main {
     }
     
     @Transactional
-    public void handleMempool() throws IOException {
+    public Set<String> handleMempool() throws IOException {
         //List<String> newTxIdCandidates = client.getRawMempool();
         
         Map<String, MempoolTransactionDTO> rawMempoolDetailed = client.getRawMempoolDetailed();
@@ -175,7 +215,7 @@ public class Main {
         
         String dashdBestBlockHash = client.getBestBlockHash();
         String neo4jBestBlockHash = blockRepository.findBestBlockHash();
-        if (!dashdBestBlockHash.equals(neo4jBestBlockHash)) return;//This avoids saving mempool transactions with referenced outputs missing from the blockchain
+        if (!dashdBestBlockHash.equals(neo4jBestBlockHash)) return new HashSet<>();//This avoids saving mempool transactions with referenced outputs missing from the blockchain
         
         newTxIdCandidates = newTxIdCandidates.stream().filter(candidate -> {
             if (neo4jMempoolTxids.contains(candidate)) return false;//Only save once
@@ -209,6 +249,7 @@ public class Main {
             }
             //balanceEventService.createBalances(tx.getTxid());
         }
+        return newTxIdCandidates;
     }
 
     public void createIndexes() {

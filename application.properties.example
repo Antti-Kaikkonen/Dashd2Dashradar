@@ -7,3 +7,5 @@ neo4j.driver=org.neo4j.ogm.drivers.http.driver.HttpDriver
 
 logging.level.root=ERROR
 log4j.logger.org.springframework.transaction=INFO
+
+zmqaddress=tcp://localhost:28332
