@@ -146,7 +146,7 @@ public class Main {
     }
     
     @Scheduled(initialDelay = 5000, fixedDelay = 50)
-    public void checkForChanges() throws IOException {
+    public void checkForChanges() throws InterruptedException {
         try {
             handleNewBlocks();
             Set<String> savedMempoolTxids = handleMempool();
@@ -158,6 +158,8 @@ public class Main {
             }
         } catch(Exception e) {
             e.printStackTrace();
+            System.out.println("Waiting 10 seconds before retry...");
+            Thread.sleep(10000);
         }
    
     }
