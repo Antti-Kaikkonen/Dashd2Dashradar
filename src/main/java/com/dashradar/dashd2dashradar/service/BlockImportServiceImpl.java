@@ -17,17 +17,12 @@ import com.dashradar.dashradarbackend.service.BalanceEventService;
 import com.dashradar.dashradarbackend.service.DailyPercentilesService;
 import com.dashradar.dashradarbackend.service.MultiInputHeuristicClusterService;
 import com.dashradar.dashradarbackend.util.TransactionUtil;
-import static com.dashradar.dashradarbackend.util.TransactionUtil.isCollateralOutput;
 import static com.dashradar.dashradarbackend.util.TransactionUtil.isDenomination;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -165,7 +160,11 @@ public class BlockImportServiceImpl implements BlockImportService {
                     }
                     if (n > 0) {
                         transactionRepository.compute_tx_fee(txid);
-                        multiInputHeuristicClusterService.clusterizeTransaction(txid);
+                        if (psType != Transaction.PRIVATE_SEND_MIXING_0_01 && psType != Transaction.PRIVATE_SEND_MIXING_0_1 && 
+                                psType != Transaction.PRIVATE_SEND_MIXING_1_0 && psType != Transaction.PRIVATE_SEND_MIXING_10_0 && 
+                                psType != Transaction.PRIVATE_SEND_MIXING_100_0) {
+                            multiInputHeuristicClusterService.clusterizeTransaction(txid);
+                        }
                     }
                 }    
             }
@@ -194,7 +193,8 @@ public class BlockImportServiceImpl implements BlockImportService {
         transactionRepository.create_mixing_source_connections(block.getHash(), Transaction.PRIVATE_SEND_MIXING_0_01);
     }
     
-    private int getPsType(TransactionDTO tx) {
+    @Override
+    public int getPsType(TransactionDTO tx) {
         
         if (tx.getVin().size() >= 3 && tx.getVin().size() == tx.getVout().size()) {//Possibly mixing
             long firstValue = tx.getVout().get(0).getValueSat();

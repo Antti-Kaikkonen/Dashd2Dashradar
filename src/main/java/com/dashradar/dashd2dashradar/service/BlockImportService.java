@@ -10,4 +10,6 @@ public interface BlockImportService {
     
     public void processTx(TransactionDTO transaction);
     
+    public int getPsType(TransactionDTO tx);
+    
 }

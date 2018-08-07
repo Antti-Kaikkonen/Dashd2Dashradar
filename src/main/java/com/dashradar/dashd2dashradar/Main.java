@@ -227,7 +227,8 @@ public class Main {
         for (String newTxid : newTxIdCandidates) {
             //System.out.println("Adding "+newTxid+" to mempool");
             TransactionDTO tx = client.getTrasactionByTxId(newTxid);
-            transactionRepository.createMempoolTransaction(tx.getLocktime(), Transaction.PRIVATE_SEND_NONE, tx.getSize(), tx.getTxid(), tx.getVersion(), System.currentTimeMillis()/1000);
+            int psType = blockImportService.getPsType(tx);
+            transactionRepository.createMempoolTransaction(tx.getLocktime(), psType, tx.getSize(), tx.getTxid(), tx.getVersion(), System.currentTimeMillis()/1000);
             for (TransactionDTO.VIn vin : tx.getVin()) {
                 transactionInputRepository.createTransactionInput(tx.getTxid(), vin.getSequence(), vin.getTxid(), vin.getVout());
             }
@@ -241,13 +242,11 @@ public class Main {
                 transactionOutputRepository.createTransactionOutput(tx.getTxid(), vout.getN(), vout.getValueSat(), addresses);
             }
             transactionRepository.compute_tx_fee(tx.getTxid());
-            multiInputHeuristicClusterService.clusterizeTransaction(tx.getTxid());
 
-            Transaction tx2 = transactionRepository.findByTxid(tx.getTxid(), 2);
-            int psType = TransactionUtil.getPsType(tx2);
-            tx2.setPstype(psType);
-            if (tx2.getPstype() != Transaction.PRIVATE_SEND_NONE) {
-                transactionRepository.save(tx2);
+            if (psType != Transaction.PRIVATE_SEND_MIXING_0_01 && psType != Transaction.PRIVATE_SEND_MIXING_0_1 && 
+                                psType != Transaction.PRIVATE_SEND_MIXING_1_0 && psType != Transaction.PRIVATE_SEND_MIXING_10_0 && 
+                                psType != Transaction.PRIVATE_SEND_MIXING_100_0) {
+                multiInputHeuristicClusterService.clusterizeTransaction(tx.getTxid());
             }
             //balanceEventService.createBalances(tx.getTxid());
         }
