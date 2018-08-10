@@ -241,6 +241,7 @@ public class BlockImportServiceImpl implements BlockImportService {
     
     private boolean allInputsAreDenoms(TransactionDTO tx) {
         return tx.getVin().stream().allMatch(vin -> {
+            if (vin.getTxid() == null) return false;//from genesis transaction
             try {
                 TransactionDTO vinTx = client.getTrasactionByTxId(vin.getTxid());
                 VOut spentOutput = vinTx.getVout().stream().filter(vout -> vout.getN() == vin.getVout()).findFirst().get();
@@ -253,6 +254,7 @@ public class BlockImportServiceImpl implements BlockImportService {
     
     private boolean allInputsAreSameDenom(long denom, TransactionDTO tx) {
         return tx.getVin().stream().allMatch(vin -> {
+            if (vin.getTxid() == null) return false;//from genesis transaction
             try {
                 TransactionDTO vinTx = client.getTrasactionByTxId(vin.getTxid());
                 VOut spentOutput = vinTx.getVout().stream().filter(vout -> vout.getN() == vin.getVout()).findFirst().get();

@@ -35,7 +35,6 @@ import com.dashradar.dashradarbackend.repository.TransactionRepository;
 import com.dashradar.dashradarbackend.service.BalanceEventService;
 import com.dashradar.dashradarbackend.service.DailyPercentilesService;
 import com.dashradar.dashradarbackend.service.MultiInputHeuristicClusterService;
-import com.dashradar.dashradarbackend.util.TransactionUtil;
 import java.math.BigInteger;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -114,7 +113,7 @@ public class Main {
 
     @Bean
     public CommandLineRunner commandLineRunner(ApplicationContext ctx) {
-        return args -> {
+        return args -> {         
             createIndexes();
             dayRepository.deleteOrphanedDays();
             
