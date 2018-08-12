@@ -137,10 +137,9 @@ public class BlockImportServiceImpl implements BlockImportService {
                     System.out.println("Transaction "+txid+" moved from orphaned block");
                 } else {
                     TransactionDTO tx = client.getTrasactionByTxId(txid);
-                    
                     //TODO compute pstype here!
                     //tx.getVout().forEach(vout -> vout.getValueSat() === TransactionService);
-                    int psType = getPsType(tx);
+                    int psType = n == 0 ? Transaction.PRIVATE_SEND_NONE : getPsType(tx);
                     transactionRepository.createBlockTransaction(n, tx.getLocktime(), psType, tx.getSize(), txid, tx.getVersion(), block.getHash());
                     for (VIn vin : tx.getVin()) {
                         if (vin.getCoinbase() != null) {
@@ -166,7 +165,7 @@ public class BlockImportServiceImpl implements BlockImportService {
                             multiInputHeuristicClusterService.clusterizeTransaction(txid);
                         }
                     }
-                }    
+                }                  
             }
             balanceEventService.createBalances(txid);
             n++;
@@ -193,9 +192,9 @@ public class BlockImportServiceImpl implements BlockImportService {
         transactionRepository.create_mixing_source_connections(block.getHash(), Transaction.PRIVATE_SEND_MIXING_0_01);
     }
     
+    
     @Override
     public int getPsType(TransactionDTO tx) {
-        
         if (tx.getVin().size() >= 3 && tx.getVin().size() == tx.getVout().size()) {//Possibly mixing
             long firstValue = tx.getVout().get(0).getValueSat();
             boolean firstValueIsDenom = TransactionUtil.isDenomination(firstValue);
@@ -235,7 +234,6 @@ public class BlockImportServiceImpl implements BlockImportService {
                 return Transaction.PRIVATE_SEND;
             }
         } 
-        
         return Transaction.PRIVATE_SEND_NONE;
     }
     
@@ -243,9 +241,9 @@ public class BlockImportServiceImpl implements BlockImportService {
         return tx.getVin().stream().allMatch(vin -> {
             if (vin.getTxid() == null) return false;//from genesis transaction
             try {
-                TransactionDTO vinTx = client.getTrasactionByTxId(vin.getTxid());
-                VOut spentOutput = vinTx.getVout().stream().filter(vout -> vout.getN() == vin.getVout()).findFirst().get();
-                return TransactionUtil.isDenomination(spentOutput.getValueSat());
+                Long outputValue = transactionOutputRepository.getOutputValue(vin.getTxid(), vin.getVout());
+                if (outputValue == null) throw new RuntimeException("outputValue NULL!");
+                return TransactionUtil.isDenomination(outputValue);
             } catch(Exception ex) {
                 throw new RuntimeException();
             }
@@ -256,9 +254,9 @@ public class BlockImportServiceImpl implements BlockImportService {
         return tx.getVin().stream().allMatch(vin -> {
             if (vin.getTxid() == null) return false;//from genesis transaction
             try {
-                TransactionDTO vinTx = client.getTrasactionByTxId(vin.getTxid());
-                VOut spentOutput = vinTx.getVout().stream().filter(vout -> vout.getN() == vin.getVout()).findFirst().get();
-                return spentOutput.getValueSat() == denom;
+                Long outputValue = transactionOutputRepository.getOutputValue(vin.getTxid(), vin.getVout());
+                if (outputValue == null) throw new RuntimeException("outputValue NULL!");
+                return outputValue == denom;
             } catch(Exception ex) {
                 throw new RuntimeException();
             }
