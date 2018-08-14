@@ -35,6 +35,7 @@ import com.dashradar.dashradarbackend.repository.TransactionRepository;
 import com.dashradar.dashradarbackend.service.BalanceEventService;
 import com.dashradar.dashradarbackend.service.DailyPercentilesService;
 import com.dashradar.dashradarbackend.service.MultiInputHeuristicClusterService;
+import com.dashradar.dashradarbackend.util.TransactionUtil;
 import java.math.BigInteger;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -47,6 +48,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.lang3.ArrayUtils;
+import org.neo4j.ogm.model.Result;
+import org.neo4j.ogm.session.Session;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.transaction.annotation.Transactional;
 import org.zeromq.ZMQ;
@@ -110,15 +113,92 @@ public class Main {
     public Client client(@Value("${rpcurl}") String rpcurl, @Value("${rpcuser}") String rpcuser, @Value("${rpcpassword}") String rpcpassword) {
         return new Client(new DashConnector(rpcurl, rpcuser, rpcpassword));
     }
+    
+    boolean ready = false;
 
     @Bean
     public CommandLineRunner commandLineRunner(ApplicationContext ctx) {
-        return args -> {         
+        return args -> {
+            boolean add_ps_collateral_types = false;
+            for (String arg : args) {
+                if (arg.equals("add_create_ps_collateral_types")) {
+                    add_ps_collateral_types = true;
+                }
+            }
             createIndexes();
             dayRepository.deleteOrphanedDays();
             
+            if (add_ps_collateral_types) {
+                System.out.println("adding collateral ps types!");
+                addPsCollateralTypes();
+            }
+            ready = true;
+            
             instantSendLoop();
         };
+    }
+    
+    private void addPsCollateralTypes() throws IOException {
+        int blockInterval = 10;
+        String dashdBestBlockHash = client.getBestBlockHash();
+        String neo4jBestBlockHash = blockRepository.findBestBlockHash();
+        long toHeight = client.getBlock(dashdBestBlockHash).getHeight();
+        Session openSession = sessionFactory.openSession();
+        for (long height = 0; height <= toHeight; height+=blockInterval) {
+            System.out.println("Adding collateral types height:"+height);
+            HashMap<String, Object> params = new HashMap<>();
+            params.put("minHeight", height);
+            params.put("maxHeight", height+blockInterval);
+            Result possiblyCollateralPayment = openSession.query(
+"CYPHER planner = rule\n" +
+"MATCH (b:Block)\n" +
+"WHERE b.height >= $minHeight AND b.height < $maxHeight\n" +
+"WITH b\n"+
+"MATCH (tx:Transaction {pstype:0})-[:INCLUDED_IN]->(b)\n" +
+"WHERE tx.n > 0 AND (tx.feesSat = "+TransactionUtil.COLLATERAL_PAYMENT+" OR tx.feesSat = "+TransactionUtil.COLLATERAL_PAYMENT_LEGACY+") \n" +
+"RETURN tx.txid as txid;", params);
+            for (Map<String, Object> row : possiblyCollateralPayment.queryResults()) {
+                String txid = (String) row.get("txid");
+                TransactionDTO tx = client.getTrasactionByTxId(txid);
+                int psType = blockImportService.getPsType(tx);
+                if (psType != Transaction.PRIVATE_SEND_NONE) {
+                    HashMap<String, Object> params2 = new HashMap<>();
+                    params2.put("txid", txid);
+                    params2.put("pstype", psType);
+                    openSession.query("MATCH (tx:Transaction {txid:$txid}) SET tx.pstype=$pstype;", params2);
+                }
+            }
+            Result possiblyMakeCollateralInputs = openSession.query(
+"CYPHER planner = rule\n" +
+"MATCH (b:Block)\n" +
+"WHERE b.height >= $minHeight AND b.height < $maxHeight\n" +
+"WITH b\n"+
+"MATCH (output:TransactionOutput)<-[:OUTPUT]-(tx:Transaction {pstype:0})-[:INCLUDED_IN]->(b) \n" +
+"WHERE tx.n > 0 AND (output.valueSat="+TransactionUtil.COLLATERAL_OUTPUT+" OR output.valueSat="+TransactionUtil.COLLATERAL_OUTPUT_LEGACY+") \n" +
+"RETURN distinct tx.txid as txid;", params);
+            for (Map<String, Object> row : possiblyMakeCollateralInputs.queryResults()) {
+                String txid = (String) row.get("txid");
+                TransactionDTO tx = client.getTrasactionByTxId(txid);
+                int psType = blockImportService.getPsType(tx);
+                if (psType != Transaction.PRIVATE_SEND_NONE) {
+                    HashMap<String, Object> params2 = new HashMap<>();
+                    params2.put("txid", txid);
+                    params2.put("pstype", psType);
+                    openSession.query("MATCH (tx:Transaction {txid:$txid}) SET tx.pstype=$pstype;", params2);
+                }
+            }
+        }
+        List<String> mempoolTxids = transactionRepository.getMempoolTxids();
+        for (String txid : mempoolTxids) {
+            TransactionDTO tx = client.getTrasactionByTxId(txid);
+            int psType = blockImportService.getPsType(tx);
+            if (psType == Transaction.PRIVATE_SEND_COLLATERAL_PAYMENT || psType == Transaction.PRIVATE_SEND_MAKE_COLLATERAL_INPUTS) {
+                HashMap<String, Object> params2 = new HashMap<>();
+                params2.put("txid", txid);
+                params2.put("pstype", psType);
+                openSession.query("MATCH (tx:Transaction {txid:$txid}) SET tx.pstype=$pstype;", params2);
+            }
+        }
     }
     
     public void instantSendLoop() {
@@ -146,6 +226,7 @@ public class Main {
     
     @Scheduled(initialDelay = 5000, fixedDelay = 50)
     public void checkForChanges() throws InterruptedException {
+        if (!ready) return;
         try {
             handleNewBlocks();
             Set<String> savedMempoolTxids = handleMempool();

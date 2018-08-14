@@ -195,6 +195,7 @@ public class BlockImportServiceImpl implements BlockImportService {
     
     @Override
     public int getPsType(TransactionDTO tx) {
+        if (tx.getVin().size() == 1 && tx.getVin().get(0).getCoinbase() != null) return Transaction.PRIVATE_SEND_NONE;
         if (tx.getVin().size() >= 3 && tx.getVin().size() == tx.getVout().size()) {//Possibly mixing
             long firstValue = tx.getVout().get(0).getValueSat();
             boolean firstValueIsDenom = TransactionUtil.isDenomination(firstValue);
@@ -223,7 +224,7 @@ public class BlockImportServiceImpl implements BlockImportService {
                 if (nonDenominations.size() == 1) {
                     return Transaction.PRIVATE_SEND_CREATE_DENOMINATIONS;
                 } else if (nonDenominations.size() == 2) {
-                     if (nonDenominations.stream().anyMatch(denom -> TransactionUtil.isCollateralOutput(denom))) {
+                     if (nonDenominations.stream().anyMatch(denom -> TransactionUtil.isMakeCollateralInputsOutput(denom))) {
                          return Transaction.PRIVATE_SEND_CREATE_DENOMINATIONS;
                      }
                 }
@@ -234,6 +235,20 @@ public class BlockImportServiceImpl implements BlockImportService {
                 return Transaction.PRIVATE_SEND;
             }
         } 
+        if (tx.getVin().size() == 1 && tx.getVout().size() == 1 && tx.getVout().get(0).getValueSat()%100000==0) {
+            VIn vin = tx.getVin().get(0);
+            VOut vout = tx.getVout().get(0);
+            if (TransactionUtil.isCollateralPaymentOutput(vout.getValueSat())) {
+                long inputValue = transactionOutputRepository.getOutputValue(vin.getTxid(), vin.getVout());
+                long fee = inputValue-vout.getValueSat();
+                if (fee == TransactionUtil.COLLATERAL_PAYMENT || fee == TransactionUtil.COLLATERAL_PAYMENT_LEGACY) {
+                    return Transaction.PRIVATE_SEND_COLLATERAL_PAYMENT;
+                }
+            }
+        }
+        if (tx.getVout().stream().anyMatch(vout -> TransactionUtil.isMakeCollateralInputsOutput(vout.getValueSat()))) {
+            return Transaction.PRIVATE_SEND_MAKE_COLLATERAL_INPUTS;
+        }
         return Transaction.PRIVATE_SEND_NONE;
     }
     
