@@ -84,6 +84,14 @@ public class BlockImportServiceImpl implements BlockImportService {
         privateSendTotalsRepository.compute_privatesend_mixing_10_0_spent_output_count(block.getHash());
         privateSendTotalsRepository.compute_privatesend_mixing_100_0_spent_output_count(block.getHash());
         
+        
+        privateSendTotalsRepository.compute_mixing_100_0_size(block.getHash());
+        privateSendTotalsRepository.compute_mixing_10_0_size(block.getHash());
+        privateSendTotalsRepository.compute_mixing_1_0_size(block.getHash());
+        privateSendTotalsRepository.compute_mixing_0_1_size(block.getHash());
+        privateSendTotalsRepository.compute_mixing_0_01_size(block.getHash());
+        
+        
         privateSendTotalsRepository.compute_privatesend_tx_input_count(block.getHash());
         //TODO
     }

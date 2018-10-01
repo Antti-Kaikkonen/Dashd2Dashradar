@@ -120,7 +120,11 @@ public class Main {
     public CommandLineRunner commandLineRunner(ApplicationContext ctx) {
         return args -> {
             boolean add_ps_collateral_types = false;
+            boolean add_mixing_sizes = false;
             for (String arg : args) {
+                if (arg.equals("add_mixing_sizes")) {
+                    add_mixing_sizes = true;
+                }
                 if (arg.equals("add_create_ps_collateral_types")) {
                     add_ps_collateral_types = true;
                 }
@@ -132,10 +136,29 @@ public class Main {
                 System.out.println("adding collateral ps types!");
                 addPsCollateralTypes();
             }
+            if (add_mixing_sizes) {
+                System.out.println("adding mixing sizes!");
+                addMixingSizes();
+                
+            }
             ready = true;
             
             instantSendLoop();
         };
+    }
+    
+    private void addMixingSizes() throws IOException {
+        String neo4jBestBlockHash = blockRepository.findBestBlockHash();
+        long toHeight = client.getBlock(neo4jBestBlockHash).getHeight();
+        for (long height = 1; height <= toHeight; height++) {
+            System.out.println("h: "+height);
+            String blockHash = client.getBlockHash(height);
+            privateSendTotalsRepository.compute_mixing_100_0_size(blockHash);
+            privateSendTotalsRepository.compute_mixing_10_0_size(blockHash);
+            privateSendTotalsRepository.compute_mixing_1_0_size(blockHash);
+            privateSendTotalsRepository.compute_mixing_0_1_size(blockHash);
+            privateSendTotalsRepository.compute_mixing_0_01_size(blockHash);
+        }
     }
     
     private void addPsCollateralTypes() throws IOException {
