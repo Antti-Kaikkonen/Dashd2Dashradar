@@ -97,14 +97,16 @@ public class BlockImportServiceImpl implements BlockImportService {
     }
     
     private void createBlockChainTotals(BlockDTO block) {
-        blockChainTotalsRepository.compute_input_counts(block.getHash());
-        blockChainTotalsRepository.compute_output_counts(block.getHash());
-        blockChainTotalsRepository.compute_total_block_rewards(block.getHash());
-        blockChainTotalsRepository.compute_total_block_size(block.getHash());
-        blockChainTotalsRepository.compute_total_fees(block.getHash());
-        blockChainTotalsRepository.compute_total_output_volume(block.getHash());
-        blockChainTotalsRepository.compute_total_transaction_size(block.getHash());
-        blockChainTotalsRepository.compute_total_tx_count(block.getHash());
+        String hash = block.getHash();
+        blockChainTotalsRepository.compute_input_counts(hash);
+        blockChainTotalsRepository.compute_output_counts(hash);
+        blockChainTotalsRepository.compute_total_block_rewards(hash);
+        blockChainTotalsRepository.compute_total_block_size(hash);
+        blockChainTotalsRepository.compute_total_difficulty(hash);
+        blockChainTotalsRepository.compute_total_fees(hash);
+        blockChainTotalsRepository.compute_total_output_volume(hash);
+        blockChainTotalsRepository.compute_total_transaction_size(hash);
+        blockChainTotalsRepository.compute_total_tx_count(hash);
     }
     
     @Override
@@ -265,9 +267,14 @@ public class BlockImportServiceImpl implements BlockImportService {
             if (vin.getTxid() == null) return false;//from genesis transaction
             try {
                 Long outputValue = transactionOutputRepository.getOutputValue(vin.getTxid(), vin.getVout());
-                if (outputValue == null) throw new RuntimeException("outputValue NULL!");
+                if (outputValue == null) {
+                    System.out.println("NULL OUTPUT 1 "+vin.getTxid()+", "+vin.getVout());
+                    return false;
+                }//throw new RuntimeException("outputValue NULL!");
                 return TransactionUtil.isDenomination(outputValue);
             } catch(Exception ex) {
+                System.out.println("allInputsAreDenoms error "+ vin.getTxid()+", "+vin.getVout());
+                ex.printStackTrace();
                 throw new RuntimeException();
             }
         });
@@ -278,9 +285,14 @@ public class BlockImportServiceImpl implements BlockImportService {
             if (vin.getTxid() == null) return false;//from genesis transaction
             try {
                 Long outputValue = transactionOutputRepository.getOutputValue(vin.getTxid(), vin.getVout());
-                if (outputValue == null) throw new RuntimeException("outputValue NULL!");
+                if (outputValue == null) {
+                    System.out.println("NULL OUTPUT 2 "+vin.getTxid()+", "+vin.getVout());
+                    return false;
+                }//throw new RuntimeException("outputValue NULL! "+ vin.getTxid()+" , "+vin.getVout());
                 return outputValue == denom;
             } catch(Exception ex) {
+                System.out.println("allInputsAreSameDenom error "+ vin.getTxid()+", "+vin.getVout());
+                ex.printStackTrace();
                 throw new RuntimeException();
             }
         });

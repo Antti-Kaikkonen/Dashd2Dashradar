@@ -121,6 +121,7 @@ public class Main {
         return args -> {
             boolean add_ps_collateral_types = false;
             boolean add_mixing_sizes = false;
+            boolean add_difficulty = false;
             for (String arg : args) {
                 if (arg.equals("add_mixing_sizes")) {
                     add_mixing_sizes = true;
@@ -128,10 +129,16 @@ public class Main {
                 if (arg.equals("add_create_ps_collateral_types")) {
                     add_ps_collateral_types = true;
                 }
+                if (arg.equals("add_difficulty")) {
+                    add_difficulty = true;
+                }
             }
             createIndexes();
             dayRepository.deleteOrphanedDays();
-            
+            if (add_difficulty) {
+                System.out.println("Adding difficulty");
+                addDifficulty();
+            }
             if (add_ps_collateral_types) {
                 System.out.println("adding collateral ps types!");
                 addPsCollateralTypes();
@@ -145,6 +152,16 @@ public class Main {
             
             instantSendLoop();
         };
+    }
+    
+    private void addDifficulty() throws IOException {
+        String neo4jBestBlockHash = blockRepository.findBestBlockHash();
+        long toHeight = client.getBlock(neo4jBestBlockHash).getHeight();
+        for (long height = 1; height <= toHeight; height++) {
+            System.out.println("h: "+height);
+            String blockHash = client.getBlockHash(height);
+            blockChainTotalsRepository.compute_total_difficulty(blockHash);
+        }
     }
     
     private void addMixingSizes() throws IOException {
