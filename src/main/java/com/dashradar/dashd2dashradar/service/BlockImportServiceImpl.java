@@ -147,8 +147,6 @@ public class BlockImportServiceImpl implements BlockImportService {
                     System.out.println("Transaction "+txid+" moved from orphaned block");
                 } else {
                     TransactionDTO tx = client.getTrasactionByTxId(txid);
-                    //TODO compute pstype here!
-                    //tx.getVout().forEach(vout -> vout.getValueSat() === TransactionService);
                     int psType = n == 0 ? Transaction.PRIVATE_SEND_NONE : getPsType(tx);
                     transactionRepository.createBlockTransaction(n, tx.getLocktime(), psType, tx.getSize(), txid, tx.getVersion(), block.getHash());
                     for (VIn vin : tx.getVin()) {

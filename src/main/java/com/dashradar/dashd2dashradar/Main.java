@@ -285,30 +285,25 @@ public class Main {
     }
     
     
-    
     public void handleNewBlocks() throws IOException {
         String dashdBestBlockHash = client.getBestBlockHash();
         String neo4jBestBlockHash = blockRepository.findBestBlockHash();
-        Long lastDay = dayRepository.lastDay();
-        //System.out.println("lastDay:"+lastDay);
         if (neo4jBestBlockHash != null && dashdBestBlockHash.equals(neo4jBestBlockHash)) return;
         Long neo4jHeight = neo4jBestBlockHash == null ? -1 : blockRepository.findBlockHeightByHash(neo4jBestBlockHash);
-        for (long height = neo4jHeight+1; height <= client.getBlock(dashdBestBlockHash).getHeight(); height++) {
-            System.out.println("processing "+height);
-            BlockDTO block = client.getBlockByHeight(height);
+        
+        BlockDTO block = client.getBlockByHeight(neo4jHeight+1);
+        
+        if (neo4jBestBlockHash != null && !block.getPreviousblockhash().equals(neo4jBestBlockHash)) {//REORG
+            System.out.println("Blockchain reorganization detected at height " + block.getHeight() + ".");
+            Block newTip = processReorg(block.getPreviousblockhash());
+            dayRepository.deleteOrphanedDays();
+            return;
+        }
+        
+        Long lastDay = dayRepository.lastDay();
+        String currentHash = block.getHash();
+        do {
             long blockDay = block.getTime()/(60*60*24);
-            if (neo4jBestBlockHash != null && !block.getPreviousblockhash().equals(neo4jBestBlockHash)) {//REORG
-                System.out.println("Blockchain reorganization detected at height " + height + ".");
-                for (int i = 0; i < 5; i++) {
-                    System.out.println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-                }
-                Block newTip = processReorg(block.getPreviousblockhash());
-                dayRepository.deleteOrphanedDays();
-                lastDay = dayRepository.lastDay();
-                height = newTip.getHeight();
-                neo4jBestBlockHash = newTip.getHash();
-                continue;
-            }
             if (lastDay == null) lastDay = blockDay-1;
             boolean dayChanged = blockDay > lastDay+1;
             blockImportService.processBlock(block, dayChanged);
@@ -324,8 +319,11 @@ public class Main {
                 lastDay = blockDay-1;
             }
             neo4jBestBlockHash = block.getHash();
-        }
+            currentHash = block.getNextblockhash();
+            if (currentHash != null) block = client.getBlock(currentHash);
+        } while (currentHash != null);
     }
+    
     
     @Transactional
     public Set<String> handleMempool() throws IOException {
