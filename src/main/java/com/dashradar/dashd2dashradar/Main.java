@@ -292,7 +292,7 @@ public class Main {
         Long neo4jHeight = neo4jBestBlockHash == null ? -1 : blockRepository.findBlockHeightByHash(neo4jBestBlockHash);
         
         BlockDTO block = client.getBlockByHeight(neo4jHeight+1);
-        
+
         if (neo4jBestBlockHash != null && !block.getPreviousblockhash().equals(neo4jBestBlockHash)) {//REORG
             System.out.println("Blockchain reorganization detected at height " + block.getHeight() + ".");
             Block newTip = processReorg(block.getPreviousblockhash());

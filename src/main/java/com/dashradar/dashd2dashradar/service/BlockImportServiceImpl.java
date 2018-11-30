@@ -112,7 +112,13 @@ public class BlockImportServiceImpl implements BlockImportService {
     @Override
     @Transactional
     public void processBlock(BlockDTO block, boolean dayChanged) throws IOException {
-
+        
+        if (dayChanged) {
+            System.out.println("Processing block "+block.getHeight()+" (day changed)");
+        } else {
+            System.out.println("Processing block "+block.getHeight());
+        }
+        
         if (dayChanged) {
             dayRepository.setLastBlockOfDay(block.getPreviousblockhash());
             for (double percentile = 0.25; percentile < 1; percentile += 0.25) {
