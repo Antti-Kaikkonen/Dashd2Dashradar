@@ -134,7 +134,9 @@ public class Main {
                 }
             }
             createIndexes();
+            System.out.println("indexes created");
             dayRepository.deleteOrphanedDays();
+            System.out.println("deleted orpganed days");
             if (add_difficulty) {
                 System.out.println("Adding difficulty");
                 addDifficulty();
@@ -175,6 +177,7 @@ public class Main {
             privateSendTotalsRepository.compute_mixing_1_0_size(blockHash);
             privateSendTotalsRepository.compute_mixing_0_1_size(blockHash);
             privateSendTotalsRepository.compute_mixing_0_01_size(blockHash);
+            privateSendTotalsRepository.compute_mixing_0_001_size(blockHash);
         }
     }
     
@@ -361,9 +364,9 @@ public class Main {
             }
             transactionRepository.compute_tx_fee(tx.getTxid());
 
-            if (psType != Transaction.PRIVATE_SEND_MIXING_0_01 && psType != Transaction.PRIVATE_SEND_MIXING_0_1 && 
-                                psType != Transaction.PRIVATE_SEND_MIXING_1_0 && psType != Transaction.PRIVATE_SEND_MIXING_10_0 && 
-                                psType != Transaction.PRIVATE_SEND_MIXING_100_0) {
+            if (psType != Transaction.PRIVATE_SEND_MIXING_0_001 && psType != Transaction.PRIVATE_SEND_MIXING_0_01 && 
+                    psType != Transaction.PRIVATE_SEND_MIXING_0_1 && psType != Transaction.PRIVATE_SEND_MIXING_1_0 && 
+                    psType != Transaction.PRIVATE_SEND_MIXING_10_0 &&  psType != Transaction.PRIVATE_SEND_MIXING_100_0) {
                 multiInputHeuristicClusterService.clusterizeTransaction(tx.getTxid());
             }
             //balanceEventService.createBalances(tx.getTxid());
@@ -374,14 +377,21 @@ public class Main {
     public void createIndexes() {
         System.out.println("CREATING INDEXES");
         HashMap<String, Object> params = new HashMap<>();
+        System.out.println("CREATE INDEX ON :Block(time);");
         sessionFactory.openSession().query("CREATE INDEX ON :Block(time);", params);
+        System.out.println("CREATE INDEX ON :Block(height);");
         sessionFactory.openSession().query("CREATE INDEX ON :Block(height);", params);
+        System.out.println("CREATE INDEX ON :Block(hash);");
         sessionFactory.openSession().query("CREATE INDEX ON :Block(hash);", params);
+        System.out.println("CREATE INDEX ON :Address(address);");
         sessionFactory.openSession().query("CREATE INDEX ON :Address(address);", params);
+        System.out.println("CREATE INDEX ON :Transaction(feesSat);");
         //sessionFactory.openSession().query("CREATE INDEX ON :BlockChainTotals(height);", params);
         //sessionFactory.openSession().query("CREATE INDEX ON :BlockChainTotals(time);", params);
         sessionFactory.openSession().query("CREATE INDEX ON :Transaction(feesSat);", params);
+        System.out.println("CREATE INDEX ON :Transaction(pstype);");
         sessionFactory.openSession().query("CREATE INDEX ON :Transaction(pstype);", params);
+        System.out.println("CREATE INDEX ON :Transaction(txid);");
         sessionFactory.openSession().query("CREATE INDEX ON :Transaction(txid);", params);
     }
     

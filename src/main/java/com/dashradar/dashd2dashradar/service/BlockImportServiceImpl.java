@@ -69,15 +69,18 @@ public class BlockImportServiceImpl implements BlockImportService {
         privateSendTotalsRepository.compute_mixing_1_0_counts(block.getHash());
         privateSendTotalsRepository.compute_mixing_0_1_counts(block.getHash());
         privateSendTotalsRepository.compute_mixing_0_01_counts(block.getHash());
+        privateSendTotalsRepository.compute_mixing_0_001_counts(block.getHash());
         
         privateSendTotalsRepository.compute_privatesend_tx_count(block.getHash());
         
+        privateSendTotalsRepository.compute_privatesend_mixing_0_001_output_count(block.getHash());
         privateSendTotalsRepository.compute_privatesend_mixing_0_01_output_count(block.getHash());
         privateSendTotalsRepository.compute_privatesend_mixing_0_1_output_count(block.getHash());
         privateSendTotalsRepository.compute_privatesend_mixing_1_0_output_count(block.getHash());
         privateSendTotalsRepository.compute_privatesend_mixing_10_0_output_count(block.getHash());
         privateSendTotalsRepository.compute_privatesend_mixing_100_0_output_count(block.getHash());
         
+        privateSendTotalsRepository.compute_privatesend_mixing_0_001_spent_output_count(block.getHash());
         privateSendTotalsRepository.compute_privatesend_mixing_0_01_spent_output_count(block.getHash());
         privateSendTotalsRepository.compute_privatesend_mixing_0_1_spent_output_count(block.getHash());
         privateSendTotalsRepository.compute_privatesend_mixing_1_0_spent_output_count(block.getHash());
@@ -90,7 +93,7 @@ public class BlockImportServiceImpl implements BlockImportService {
         privateSendTotalsRepository.compute_mixing_1_0_size(block.getHash());
         privateSendTotalsRepository.compute_mixing_0_1_size(block.getHash());
         privateSendTotalsRepository.compute_mixing_0_01_size(block.getHash());
-        
+        privateSendTotalsRepository.compute_mixing_0_001_size(block.getHash());
         
         privateSendTotalsRepository.compute_privatesend_tx_input_count(block.getHash());
         //TODO
@@ -192,18 +195,21 @@ public class BlockImportServiceImpl implements BlockImportService {
         transactionRepository.create_previous_connections(block.getHash(), Transaction.PRIVATE_SEND_MIXING_1_0);
         transactionRepository.create_previous_connections(block.getHash(), Transaction.PRIVATE_SEND_MIXING_0_1);
         transactionRepository.create_previous_connections(block.getHash(), Transaction.PRIVATE_SEND_MIXING_0_01);
+        transactionRepository.create_previous_connections(block.getHash(), Transaction.PRIVATE_SEND_MIXING_0_001);
         
         transactionRepository.create_first_round_connections(block.getHash(), Transaction.PRIVATE_SEND_MIXING_100_0);
         transactionRepository.create_first_round_connections(block.getHash(), Transaction.PRIVATE_SEND_MIXING_10_0);
         transactionRepository.create_first_round_connections(block.getHash(), Transaction.PRIVATE_SEND_MIXING_1_0);
         transactionRepository.create_first_round_connections(block.getHash(), Transaction.PRIVATE_SEND_MIXING_0_1);
         transactionRepository.create_first_round_connections(block.getHash(), Transaction.PRIVATE_SEND_MIXING_0_01);
+        transactionRepository.create_first_round_connections(block.getHash(), Transaction.PRIVATE_SEND_MIXING_0_001);
         
         transactionRepository.create_mixing_source_connections(block.getHash(), Transaction.PRIVATE_SEND_MIXING_100_0);
         transactionRepository.create_mixing_source_connections(block.getHash(), Transaction.PRIVATE_SEND_MIXING_10_0);
         transactionRepository.create_mixing_source_connections(block.getHash(), Transaction.PRIVATE_SEND_MIXING_1_0);
         transactionRepository.create_mixing_source_connections(block.getHash(), Transaction.PRIVATE_SEND_MIXING_0_1);
         transactionRepository.create_mixing_source_connections(block.getHash(), Transaction.PRIVATE_SEND_MIXING_0_01);
+        transactionRepository.create_mixing_source_connections(block.getHash(), Transaction.PRIVATE_SEND_MIXING_0_001);
     }
     
     
@@ -218,7 +224,9 @@ public class BlockImportServiceImpl implements BlockImportService {
             if (allOutputsAreSameDenom) {
                 boolean mixingTx = allInputsAreSameDenom(firstValue, tx);
                 if (mixingTx) {
-                    if (firstValue == TransactionUtil.DENOM_0_01) {
+                    if (firstValue == TransactionUtil.DENOM_0_001) {
+                        return Transaction.PRIVATE_SEND_MIXING_0_001;
+                    } else if (firstValue == TransactionUtil.DENOM_0_01) {
                         return Transaction.PRIVATE_SEND_MIXING_0_01;
                     } else if (firstValue == TransactionUtil.DENOM_0_1) {
                         return Transaction.PRIVATE_SEND_MIXING_0_1;
