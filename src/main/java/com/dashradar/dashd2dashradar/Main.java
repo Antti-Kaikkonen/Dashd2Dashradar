@@ -198,7 +198,7 @@ public class Main {
 "WHERE b.height >= $minHeight AND b.height < $maxHeight\n" +
 "WITH b\n"+
 "MATCH (tx:Transaction {pstype:0})-[:INCLUDED_IN]->(b)\n" +
-"WHERE tx.n > 0 AND (tx.feesSat = "+TransactionUtil.COLLATERAL_PAYMENT+" OR tx.feesSat = "+TransactionUtil.COLLATERAL_PAYMENT_LEGACY+") \n" +
+"WHERE tx.n > 0 AND (tx.feesSat = "+TransactionUtil.COLLATERAL_PAYMENT+" OR tx.feesSat = "+TransactionUtil.COLLATERAL_PAYMENT_LEGACY+" OR tx.feesSat = "+TransactionUtil.COLLATERAL_PAYMENT_LEGACY2+") \n" +
 "RETURN tx.txid as txid;", params);
             for (Map<String, Object> row : possiblyCollateralPayment.queryResults()) {
                 String txid = (String) row.get("txid");
@@ -217,7 +217,7 @@ public class Main {
 "WHERE b.height >= $minHeight AND b.height < $maxHeight\n" +
 "WITH b\n"+
 "MATCH (output:TransactionOutput)<-[:OUTPUT]-(tx:Transaction {pstype:0})-[:INCLUDED_IN]->(b) \n" +
-"WHERE tx.n > 0 AND (output.valueSat="+TransactionUtil.COLLATERAL_OUTPUT+" OR output.valueSat="+TransactionUtil.COLLATERAL_OUTPUT_LEGACY+") \n" +
+"WHERE tx.n > 0 AND (output.valueSat="+TransactionUtil.COLLATERAL_OUTPUT+" OR output.valueSat="+TransactionUtil.COLLATERAL_OUTPUT_LEGACY+" OR output.valueSat="+TransactionUtil.COLLATERAL_OUTPUT_LEGACY2+") \n" +
 "RETURN distinct tx.txid as txid;", params);
             for (Map<String, Object> row : possiblyMakeCollateralInputs.queryResults()) {
                 String txid = (String) row.get("txid");
@@ -333,19 +333,22 @@ public class Main {
         //List<String> newTxIdCandidates = client.getRawMempool();
         
         Map<String, MempoolTransactionDTO> rawMempoolDetailed = client.getRawMempoolDetailed();
-        Set<String> newTxIdCandidates = rawMempoolDetailed.keySet();
+        Set<String> dashdMempoolTxids = rawMempoolDetailed.keySet();
         List<String> neo4jMempoolTxids = transactionRepository.getMempoolTxids();
+        
+        Set<String> txidsToRemove = neo4jMempoolTxids.stream().filter(txid -> !dashdMempoolTxids.contains(txid)).collect(Collectors.toSet());
+        
         
         String dashdBestBlockHash = client.getBestBlockHash();
         String neo4jBestBlockHash = blockRepository.findBestBlockHash();
         if (!dashdBestBlockHash.equals(neo4jBestBlockHash)) return new HashSet<>();//This avoids saving mempool transactions with referenced outputs missing from the blockchain
         
-        newTxIdCandidates = newTxIdCandidates.stream().filter(candidate -> {
+        Set<String> txIdsToAdd = dashdMempoolTxids.stream().filter(candidate -> {
             if (neo4jMempoolTxids.contains(candidate)) return false;//Only save once
             boolean dependingTransactionsSaved = rawMempoolDetailed.get(candidate).getDepends().stream().allMatch(depend -> neo4jMempoolTxids.contains(depend));
             return dependingTransactionsSaved;
         }).collect(Collectors.toSet());
-        for (String newTxid : newTxIdCandidates) {
+        for (String newTxid : txIdsToAdd) {
             //System.out.println("Adding "+newTxid+" to mempool");
             TransactionDTO tx = client.getTrasactionByTxId(newTxid);
             int psType = blockImportService.getPsType(tx);
@@ -371,7 +374,7 @@ public class Main {
             }
             //balanceEventService.createBalances(tx.getTxid());
         }
-        return newTxIdCandidates;
+        return txIdsToAdd;
     }
 
     public void createIndexes() {

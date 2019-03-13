@@ -257,13 +257,13 @@ public class BlockImportServiceImpl implements BlockImportService {
                 return Transaction.PRIVATE_SEND;
             }
         } 
-        if (tx.getVin().size() == 1 && tx.getVout().size() == 1 && tx.getVout().get(0).getValueSat()%100000==0) {
+        if (tx.getVin().size() == 1 && tx.getVout().size() == 1 && TransactionUtil.isCollateralPaymentOutput(tx.getVout().get(0).getValueSat())) {
             VIn vin = tx.getVin().get(0);
             VOut vout = tx.getVout().get(0);
             if (TransactionUtil.isCollateralPaymentOutput(vout.getValueSat())) {
                 long inputValue = transactionOutputRepository.getOutputValue(vin.getTxid(), vin.getVout());
                 long fee = inputValue-vout.getValueSat();
-                if (fee == TransactionUtil.COLLATERAL_PAYMENT || fee == TransactionUtil.COLLATERAL_PAYMENT_LEGACY) {
+                if (fee == TransactionUtil.COLLATERAL_PAYMENT || fee == TransactionUtil.COLLATERAL_PAYMENT_LEGACY || fee == TransactionUtil.COLLATERAL_PAYMENT_LEGACY2) {
                     return Transaction.PRIVATE_SEND_COLLATERAL_PAYMENT;
                 }
             }
