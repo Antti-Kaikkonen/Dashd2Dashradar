@@ -1,3 +1,5 @@
+Archived because I'm not going to maintain this repository anymore.
+
 # Dashd2Dashradar
 Fetches blocks one by one from [Dash Core](https://github.com/dashpay/dash) and saves them to a [Neo4j](https://github.com/neo4j/neo4j) graph database. 
 
